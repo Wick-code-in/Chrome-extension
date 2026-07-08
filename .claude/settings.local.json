@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m json.tool manifest.json)",
+      "Bash(node --check content/content.js)"
+    ]
+  }
+}
