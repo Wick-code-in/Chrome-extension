@@ -1,5 +1,9 @@
 # Implementation Plan
 
+## Status: Version 1 Complete
+
+All phases required for a working, semi-automatic, live-tested guided upload workflow (Phases 1–13) are complete. Phase 14 is partially complete. Phases 15–16, as originally scoped below, were not built in Version 1 — their essential parts are carried forward into the Version 2 roadmap in [CHANGELOG.md](CHANGELOG.md#roadmap--version-2). See that file for the full release entry, and [architecture.md](architecture.md) for how the system is actually built, including the major bugs encountered and solved along the way.
+
 ## Project Goal
 
 Build a private Chrome Extension (Manifest V3) that assists with uploading multiple-choice questions to the company's internal website.
@@ -54,6 +58,8 @@ Never skip a phase.
 
 Never scaffold files or functionality for future phases.
 
+This discipline was followed for every phase below and continues to apply to Version 2 development.
+
 ---
 
 # Development Workflow
@@ -72,7 +78,7 @@ Do not automatically continue to the next phase.
 
 ---
 
-# Phase 1 — Chrome Extension Skeleton
+# Phase 1 — Chrome Extension Skeleton — ✅ Complete
 
 ## Objective
 
@@ -99,9 +105,11 @@ Create the minimum working Chrome Extension.
 - Panel does not appear elsewhere.
 - Reloading the page does not create duplicates.
 
+**As built:** `content/content.js` injects a single Shadow DOM host (guarded against duplicate injection by checking for an existing host id), waiting for `document.body` via a `MutationObserver` before injecting.
+
 ---
 
-# Phase 2 — Assistant UI
+# Phase 2 — Assistant UI — ✅ Complete
 
 ## Objective
 
@@ -141,9 +149,11 @@ No browser interaction.
 - Execute Step logs correctly.
 - Layout remains stable.
 
+**As built:** `content/panel.js` renders the panel (question counter, current state, status message, progress bar, Execute Step, Load Markdown), and implements dragging via mouse event listeners on the header. Execute Step's console-only behavior was later wired to the real state machine (Phase 5/6) as planned — this phase's scope was UI-only.
+
 ---
 
-# Phase 3 — Markdown Loader
+# Phase 3 — Markdown Loader — ✅ Complete
 
 ## Objective
 
@@ -176,9 +186,11 @@ The persistence strategy for this in-memory state (e.g., whether it must survive
 
 Markdown loads successfully.
 
+**As built:** file loading was implemented in `content/loader.js` (not `panel.js` directly), exposing a small public API (`openFilePicker`, `getRawMarkdown`, `getFilename`, `hasFileLoaded`) that the panel consumes — this kept the panel a pure view/wiring layer rather than owning file-reading logic itself. The persistence question raised here was ultimately decided during Phase 16 planning: no persistence in Version 1. See [context.md](context.md#session-state--persistence).
+
 ---
 
-# Phase 4 — Markdown Parser
+# Phase 4 — Markdown Parser — ✅ Complete
 
 ## Objective
 
@@ -246,9 +258,11 @@ Parser must be completely independent of browser automation.
 
 Correct Question Objects are produced for any number of questions, regardless of subject or section structure.
 
+**As built:** matches the real sample format discovered via `samples/jee-main-pyq.md` — question markers `**N.**`, options `(1)`–`(4)`, answer marker `Ans. (N)`. Implemented as a decomposed pipeline (boundary-finding → answer-splitting → option-splitting → image detection → type determination) rather than one large regex, to keep each concern independently testable. See [context.md](context.md#question-object) for the exact shape produced (note: `marks`/`penalty` are *not* part of the Question Object — they're fixed values applied in `PREPARE_FORM`).
+
 ---
 
-# Phase 5 — State Machine
+# Phase 5 — State Machine — ✅ Complete
 
 ## Objective
 
@@ -260,43 +274,7 @@ Implement the guided workflow.
 
 ## States
 
-IDLE
-
-↓
-
-PREPARE_FORM
-
-↓
-
-PASTE_QUESTION
-
-↓
-
-PASTE_OPTIONS
-
-↓
-
-MARK_CORRECT
-
-↓
-
-GENERATE_AI
-
-↓
-
-SAVE
-
-↓
-
-NEXT_QUESTION
-
-↓ (more questions remain)
-
-PREPARE_FORM
-
-↓ (no questions remain)
-
-COMPLETE
+IDLE → PREPARE_FORM → PASTE_QUESTION → PASTE_OPTIONS → MARK_CORRECT → GENERATE_AI → SAVE → NEXT_QUESTION → (more questions remain) PREPARE_FORM / (no questions remain) COMPLETE
 
 ## Requirements
 
@@ -328,9 +306,11 @@ If the current Question Object has `hasImage: true`, execution for that question
 
 No browser interaction yet.
 
+**As built:** at this phase, all states except IDLE and NEXT_QUESTION/COMPLETE were stub handlers (`makeStubHandler`) that validated preconditions and returned success without touching the DOM — real browser automation was added state-by-state in Phases 7–12. `lib/session.js` (a single source of truth for raw markdown, parsed questions, current index, current state) was introduced alongside this phase so the state machine, panel, and loader could all read/write session data through one consistent API rather than each other's internals.
+
 ---
 
-# Phase 6 — Browser Helpers
+# Phase 6 — Browser Helpers — ✅ Complete
 
 ## Objective
 
@@ -364,9 +344,11 @@ Browser helpers must remain generic.
 
 No business logic.
 
+**As built:** `lib/selectors.js` was created in this phase (with placeholder values, verified selector-by-selector in later phases) rather than deferred, so every later phase had one consistent place to write selectors into from the start. `findElement()` also supports selector *descriptors* (not just CSS strings) — see [architecture.md](architecture.md#the-selector-descriptor-system) — added incrementally as later phases encountered elements with no stable CSS-addressable attribute. Both `waitForElement()`/`waitForDisappear()` observe `document.documentElement` rather than the caller's `root`, for robustness against the framework replacing `root` wholesale — see [architecture.md](architecture.md#waiting-strategy-mutationobserver-only).
+
 ---
 
-# Phase 7 — Prepare Form
+# Phase 7 — Prepare Form — ✅ Complete
 
 Implement
 
@@ -381,9 +363,11 @@ Responsibilities
 
 Stop.
 
+**As built:** all four selectors verified via live HTML inspection before implementation. The Marks field's own appearance is used as the "form is ready" signal (no separate dialog-wrapper selector needed). The Question Type dropdown's selector was later revised — see [architecture.md](architecture.md#2-question-type-selector-collision-after-the-first-question-is-saved-post-phase-12) for the multi-question collision bug this phase's original selector caused, discovered and fixed after Phase 12.
+
 ---
 
-# Phase 8 — Paste Question
+# Phase 8 — Paste Question — ✅ Complete
 
 Implement
 
@@ -397,9 +381,11 @@ Responsibilities
 
 Stop.
 
+**As built:** discovered during this phase that rich-text fields must be populated through the site's own "Paste Markdown Data" import modal, not by manipulating the TinyMCE editor directly. This produced `DomHelpers.pasteMarkdown()` — a single reusable helper encapsulating the full click-trigger → wait-for-modal → fill-textarea → confirm → wait-for-disappear sequence, reused unchanged by PASTE_OPTIONS. See [architecture.md](architecture.md#pastemarkdown-one-reusable-workflow-not-a-per-field-copy).
+
 ---
 
-# Phase 9 — Paste Options
+# Phase 9 — Paste Options — ✅ Complete
 
 Implement
 
@@ -416,9 +402,11 @@ Paste
 
 Stop.
 
+**As built:** implemented as a loop over `["A", "B", "C", "D"]`, calling `pasteMarkdown()` once per letter — no duplicated modal-handling logic. Live inspection revealed each Option's label and its editor's toolbar button are two DOM levels apart (not siblings, unlike Question), which required generalizing `findByLabelText()` into a bounded ancestor walk. See [architecture.md](architecture.md#1-option-editor-ancestor-scoping-phase-9) for the full bug writeup.
+
 ---
 
-# Phase 10 — Mark Correct
+# Phase 10 — Mark Correct — ✅ Complete
 
 Implement
 
@@ -432,43 +420,43 @@ Select the correct option.
 
 Stop.
 
+**As built:** uses the "Select Correct Answer" dropdown (a single native `<select>`, 0-indexed value per option) rather than the per-option "Mark as Correct" buttons — chosen for simplicity, since the dropdown's label and control are direct siblings requiring no ancestor-walk scoping, matching the Marks/Penalty pattern.
+
 ---
 
-# Phase 11 — Generate AI
+# Phase 11 — Generate AI — ✅ Complete (scope revised)
 
 Implement
 
 GENERATE_AI
 
-Responsibilities
+**Original responsibilities (superseded):**
 
 - Click Generate with AI.
-- Wait for AI generation.
-- Verify completion.
+- ~~Wait for AI generation.~~
+- ~~Verify completion.~~
 
-Stop.
-
-Advance only after successful generation.
+**As built (revised scope):** click "Generate with AI" and advance immediately — no waiting, no polling, no spinner detection, no explanation-editor inspection. This was an explicit, deliberate scope revision, not a shortfall: the extension is semi-automatic by design, and the operator reviews and edits the AI-generated explanation manually before pressing Execute Step again to proceed to SAVE. See [context.md](context.md#objective). `clickElement()` also gained a disabled-element check during this phase, since the button carries conditional `disabled:*` styling on the live site.
 
 ---
 
-# Phase 12 — Save
+# Phase 12 — Save — ✅ Complete (scope revised)
 
 Implement
 
 SAVE
 
-Responsibilities
+**Original responsibilities (superseded):**
 
 - Click Save.
-- Wait for dialog to close.
-- Verify question creation.
+- ~~Wait for dialog to close.~~
+- ~~Verify question creation.~~
 
-Stop.
+**As built (revised scope):** click "Save Question" and advance immediately — no waiting for the dialog to close, no waiting for the question bank to refresh, no verification. Same rationale as Phase 11: the operator manually verifies the save before proceeding. This phase's live testing is what surfaced the Question Type selector collision bug — see [architecture.md](architecture.md#2-question-type-selector-collision-after-the-first-question-is-saved-post-phase-12).
 
 ---
 
-# Phase 13 — Next Question
+# Phase 13 — Next Question — ✅ Complete
 
 Implement
 
@@ -477,64 +465,59 @@ NEXT_QUESTION
 Responsibilities
 
 - Advance parser pointer.
-- Update progress.
+- ~~Update progress.~~
 - If questions remain, return to PREPARE_FORM.
 - If no questions remain, transition to COMPLETE.
 
+**As built:** implemented alongside Phase 5, since it requires only pure session-index logic and no browser interaction — `Session.advanceToNextQuestion()` plus a check of `Session.hasCurrentQuestion()` to choose between `PREPARE_FORM` and `COMPLETE`. Progress *display* (question counter, progress bar) is handled by the panel reading session state after every Execute Step, not by this state itself — see Phase 14.
+
 ---
 
-# Phase 14 — Progress
+# Phase 14 — Progress — ⚠️ Partially Complete
 
 Display
 
 - Current Question
 - Progress
 - Current State
-- Estimated Remaining Time
+- ~~Estimated Remaining Time~~
+
+**As built:** the panel displays the question counter (`N / total`), current state, status message, and a percentage-based progress bar, updated after every Execute Step press by reading `Session.getCurrentQuestionIndex()` / `Session.getTotalQuestions()`. Estimated Remaining Time was not implemented and is not part of the Version 2 roadmap — dropped rather than deferred.
 
 ---
 
-# Phase 15 — Error Handling
+# Phase 15 — Error Handling — Not implemented in Version 1
 
-Implement
+Originally planned: explicit Retry / Skip / Abort controls, with errors never continuing silently and always visible to the user.
 
-- Retry
-- Skip
-- Abort
-
-Never continue silently.
-
-Errors must always be visible to the user.
+**As built:** errors are always visible (every state's `{success, message, retryable}` result is shown in the panel's status line, and a failed state never advances), which satisfies "never continue silently" — but there is no explicit Skip or Abort UI control. The only recovery path today is implicit: press Execute Step again to retry the same state. Explicit **Skip Question** is carried forward into the Version 2 roadmap. See [CHANGELOG.md](CHANGELOG.md#roadmap--version-2).
 
 ---
 
-# Phase 16 — Polish
+# Phase 16 — Polish — Not implemented in Version 1
 
-Implement
+Originally planned: session persistence, resume after interruption, keyboard shortcut, optional dark mode.
 
-- Session persistence
-- Resume after interruption
-- Keyboard shortcut
-- Optional dark mode
-
-The persistence mechanism for session state will be selected based on the target website's actual navigation behavior, as observed during earlier phases — not decided in advance.
+**As built:** none of this was implemented in Version 1 — session state lives in memory only and does not survive a page reload (see [context.md](context.md#session-state--persistence)). Session persistence and resume are carried forward as **Resume support** and **Crash/session recovery** in the Version 2 roadmap, alongside the newly-agreed **Jump to Question**. Keyboard shortcuts and dark mode are not part of the agreed Version 2 scope. See [CHANGELOG.md](CHANGELOG.md#roadmap--version-2).
 
 ---
 
 # Completion Criteria
 
-The project is complete when:
+The project (Version 1) is complete:
 
-- All phases have been implemented.
-- Every phase has been manually tested.
-- Every phase has been approved.
-- The extension reliably uploads multiple questions using the guided workflow.
+- ✅ All phases required for a working guided workflow (1–13) have been implemented.
+- ✅ Every implemented phase has been manually tested, including live testing on the real target site.
+- ✅ Every implemented phase has been approved.
+- ✅ The extension reliably uploads multiple questions using the guided workflow — live-verified across six consecutive questions after the Question Type selector fix.
 
-The project should prioritize:
+The project prioritized, throughout:
 
 - Reliability
 - Maintainability
 - Simplicity
 - Debuggability
 
-Speed of implementation is less important than correctness.
+Speed of implementation was treated as less important than correctness — reflected in the practice of live-inspecting real HTML before writing any selector, and instrumenting rather than guessing when a live bug was reported.
+
+See [CHANGELOG.md](CHANGELOG.md) for the Version 2 roadmap.

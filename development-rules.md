@@ -1,5 +1,7 @@
 # Development Rules
 
+Version 1 is complete (see [CHANGELOG.md](CHANGELOG.md)). These rules were followed throughout its build and continue to apply to Version 2 development.
+
 ## General
 
 - Build incrementally.
@@ -49,9 +51,7 @@ Log every state transition.
 
 ## Persistence
 
-Do not assume a persistence mechanism or target-site navigation behavior in advance.
-
-Decide the persistence strategy based on inspection of the actual target website during early implementation phases.
+Decided for Version 1: no persistence. Session state lives in memory only (`lib/session.js`) and does not survive a page reload — inspection of the target site during early implementation phases showed no full page reload occurs during the normal upload flow, so persistence was not required for Version 1's scope. Resume support and crash/session recovery are Version 2 roadmap items (see [CHANGELOG.md](CHANGELOG.md#roadmap--version-2)); do not build ahead of that phase being explicitly started.
 
 ## Communication
 
