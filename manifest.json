@@ -10,6 +10,8 @@
         "lib/parser.js",
         "lib/session.js",
         "lib/stateMachine.js",
+        "lib/domHelpers.js",
+        "lib/selectors.js",
         "content/loader.js",
         "content/panel.js",
         "content/content.js"

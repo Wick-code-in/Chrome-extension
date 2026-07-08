@@ -6,7 +6,10 @@
       "Bash(node --check lib/session.js)",
       "Bash(node --check lib/stateMachine.js)",
       "Bash(python3 -m json.tool /Users/sashankrajput/Desktop/Chrome-extension/manifest.json)",
-      "Bash(node --check /Users/sashankrajput/Desktop/Chrome-extension/content/panel.js)"
+      "Bash(node --check /Users/sashankrajput/Desktop/Chrome-extension/content/panel.js)",
+      "Bash(python3 -)",
+      "Bash(node *)",
+      "Bash(python3 *)"
     ]
   }
 }
