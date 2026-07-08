@@ -188,16 +188,40 @@ Convert Markdown into Question Objects.
 
 - lib/parser.js
 
+## Parsing Strategy
+
+The parser is block-based, not line-based.
+
+Each numbered question is treated as one complete block, extending from its number until the next numbered question or the end of the file.
+
+The parser preserves the original markdown of each block exactly, except for the structured fields it extracts from it.
+
+## Exact Preservation
+
+The parser only identifies question boundaries and extracts the required fields. It must not otherwise alter the markdown in any way.
+
+Specifically, the parser must not:
+
+- Normalize whitespace.
+- Reformat markdown.
+- Rewrite equations.
+- Modify LaTeX.
+- Change bullet points.
+- Trim internal blank lines.
+
+The exact original markdown of each extracted field must remain available, unmodified, for later pasting.
+
 ## Requirements
 
-Parse
+For each block, extract
 
-- Question
-- Option A
-- Option B
-- Option C
-- Option D
-- Correct Answer
+- question number
+- question markdown
+- question type
+- options (if present)
+- correct answer
+- hasImage
+- imageMarkdown (if any)
 
 Ignore everything after
 
@@ -205,7 +229,6 @@ Ignore everything after
 
 Support
 
-- Formatting
 - Multiple questions
 
 Detect (do not process)
@@ -213,15 +236,15 @@ Detect (do not process)
 - Markdown image syntax `![](...)`
 - HTML `<img>` tags
 
-When either is detected in a question, set `hasImage: true` on the Question Object. The parser does not strip, transform, upload, or otherwise act on image content — detection only.
+When either is detected in a question, set `hasImage: true` and capture the matched image markdown in `imageMarkdown`. The parser does not strip, transform, upload, or otherwise act on image content — detection only.
 
-The parser extracts individual questions only. It does not know about, validate, or enforce subject, section, or exam-level structure (e.g., how many questions belong to a section). It has no concept of a fixed exam pattern.
+The parser must never depend on subjects, sections, or fixed question counts. It must work for any number of questions. It has no concept of a fixed exam pattern.
 
 Parser must be completely independent of browser automation.
 
 ## Success Criteria
 
-Correct Question Objects are produced.
+Correct Question Objects are produced for any number of questions, regardless of subject or section structure.
 
 ---
 

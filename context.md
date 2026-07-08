@@ -208,25 +208,58 @@ continuing. See [Image Handling](#image-handling).
 
 ``` javascript
 {
-  question,
+  questionNumber,
+  questionMarkdown,
+  type,
   options: { A, B, C, D },
   correctAnswer,
+  hasImage: false,
+  imageMarkdown: null,
   marks: 4,
-  penalty: 1,
-  type: "MCQ",
-  hasImage: false
+  penalty: 1
 }
 ```
 
+`questionMarkdown` is the original markdown of the question block,
+preserved exactly as written, except for the structured fields
+extracted from it.
+
+`options` is present only for question types that have discrete
+options (e.g., MCQ). Other question types may omit it.
+
 `hasImage` is `true` when the parser detects Markdown image syntax
-`![](...)` or an HTML `<img>` tag in the question or option text. The
-parser only detects presence — it does not strip, transform, upload,
-or otherwise act on image content.
+`![](...)` or an HTML `<img>` tag in the question block. When
+detected, the matched image markdown is captured in `imageMarkdown`;
+otherwise it is `null`. The parser only detects presence — it does not
+strip, transform, upload, or otherwise act on image content.
 
 The parser extracts individual questions only. It has no concept of
 subject, section, or exam-level structure, and does not validate or
 enforce question counts. See
 [Design Philosophy: No Fixed Exam Pattern](#design-philosophy-no-fixed-exam-pattern).
+
+------------------------------------------------------------------------
+
+# Parsing Strategy
+
+The parser is block-based, not line-based.
+
+Each numbered question is treated as one complete block, extending
+from its number until the next numbered question or the end of the
+file.
+
+The parser extracts structured fields from each block and preserves
+the block's original markdown exactly, aside from that extraction.
+
+The parser only identifies question boundaries and extracts the
+required fields. It must not otherwise alter the markdown. Specifically,
+it must not normalize whitespace, reformat markdown, rewrite equations,
+modify LaTeX, change bullet points, or trim internal blank lines. The
+exact original markdown of each extracted field must remain available,
+unmodified, for later pasting.
+
+The parser must never depend on subjects, sections, or fixed question
+counts, and must work correctly for any number of questions.
 
 ------------------------------------------------------------------------
 

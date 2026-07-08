@@ -23,6 +23,12 @@ Never assume a fixed exam pattern (e.g., a fixed number of questions per subject
 - Prefer readability.
 - Prefer modularity.
 
+## Parser
+
+Block-based, not line-based. Each numbered question is one block, extending from its number to the next numbered question or end of file.
+
+Preserve each block's original markdown exactly, except for the structured fields extracted from it. Only identify question boundaries and extract fields — never normalize whitespace, reformat markdown, rewrite equations, modify LaTeX, change bullet points, or trim internal blank lines.
+
 ## Browser Helpers
 
 Keep generic.
