@@ -11,6 +11,11 @@
     panel.className = "panel";
     panel.innerHTML = `
       <div class="panel-header" data-field="header">Exam Upload Assistant</div>
+      <button type="button" class="panel-load-button" data-field="load-button">Load Markdown</button>
+      <div class="panel-row">
+        <span class="panel-label">File</span>
+        <span class="panel-value" data-field="filename">No file loaded</span>
+      </div>
       <div class="panel-row">
         <span class="panel-label">Question</span>
         <span class="panel-value" data-field="question-counter">0 / 0</span>
@@ -70,9 +75,20 @@
     const progressFillEl = panelEl.querySelector('[data-field="progress-fill"]');
     const executeButtonEl = panelEl.querySelector('[data-field="execute-button"]');
     const headerEl = panelEl.querySelector('[data-field="header"]');
+    const loadButtonEl = panelEl.querySelector('[data-field="load-button"]');
+    const filenameEl = panelEl.querySelector('[data-field="filename"]');
 
     executeButtonEl.addEventListener("click", () => {
       console.log("[Exam Upload Assistant] Execute Step clicked");
+    });
+
+    loadButtonEl.addEventListener("click", () => {
+      window.ExamUploadAssistantLoader.openFilePicker((result) => {
+        if (result.success) {
+          filenameEl.textContent = result.filename;
+        }
+        statusEl.textContent = result.message;
+      });
     });
 
     makeDraggable(panelEl, headerEl);
