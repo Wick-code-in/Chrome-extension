@@ -94,8 +94,8 @@
       },
     };
 
-    executeButtonEl.addEventListener("click", () => {
-      const result = window.ExamUploadAssistantStateMachine.executeStep();
+    executeButtonEl.addEventListener("click", async () => {
+      const result = await window.ExamUploadAssistantStateMachine.executeStep();
       const session = window.ExamUploadAssistantSession;
 
       const total = session.getTotalQuestions();
