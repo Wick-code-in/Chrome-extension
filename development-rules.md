@@ -7,6 +7,16 @@
 - Never implement future phases.
 - Never scaffold future files.
 
+## Scope
+
+Version 1 is text-only. Never implement image upload, processing, or automation.
+
+Detect Markdown image syntax (`![](...)`) and HTML `<img>` tags in the parser, and mark the Question Object with `hasImage: true`. Do not otherwise act on image content.
+
+When `hasImage` is true, pause execution and inform the user that manual image insertion is required before continuing.
+
+Never assume a fixed exam pattern (e.g., a fixed number of questions per subject or section). The parser only extracts questions — it must not know about, validate, or enforce subject, section, or exam-level structure. Subject, question type, and section size are user-configured through a future UI phase, not hardcoded.
+
 ## Coding
 
 - Prefer simple code.

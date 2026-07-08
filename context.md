@@ -15,6 +15,50 @@ public release.
 
 ------------------------------------------------------------------------
 
+# Scope: Version 1 Is Text-Only
+
+Version 1 handles text-only questions.
+
+The extension does not upload, process, manage, or automate images in
+any way.
+
+If a question contains an image (Markdown image syntax `![](...)` or
+an HTML `<img>` tag), the parser marks it with `hasImage: true` and
+does not otherwise act on the image.
+
+During execution, a question with `hasImage: true` pauses the guided
+workflow and informs the user that manual image insertion is required
+before continuing.
+
+This keeps Version 1 reliable and focused on automating the repetitive
+text-entry workflow.
+
+------------------------------------------------------------------------
+
+# Design Philosophy: No Fixed Exam Pattern
+
+The extension must not assume a fixed exam pattern (for example, 20
+MCQs and 5 Fill-in-the-Blank questions per subject).
+
+Different years and subjects may have additional optional questions or
+different section sizes.
+
+The parser's responsibility is limited to extracting individual
+questions from a Markdown file. It does not know about, validate, or
+enforce subject, section, or exam-level structure such as question
+counts.
+
+Subject selection, question type selection, and (optionally) how many
+questions belong to the current section are configuration choices made
+by the user, through a future UI phase. This configuration does not
+exist yet.
+
+The current MCQ-only workflow and the `type: "MCQ"` field on the
+Question Object reflect the scope approved so far and are expected to
+become configurable in a later phase.
+
+------------------------------------------------------------------------
+
 # Objective
 
 Reduce repetitive manual work while keeping the user in full control.
@@ -109,6 +153,11 @@ Every state validates its own preconditions before acting, and returns a failure
 
 Every state transition is logged for debugging.
 
+If the current Question Object has `hasImage: true`, execution for
+that question pauses before any browser interaction begins, and the
+user is informed that manual image insertion is required before
+continuing. See [Image Handling](#image-handling).
+
 ------------------------------------------------------------------------
 
 # State Responsibilities
@@ -164,9 +213,34 @@ Every state transition is logged for debugging.
   correctAnswer,
   marks: 4,
   penalty: 1,
-  type: "MCQ"
+  type: "MCQ",
+  hasImage: false
 }
 ```
+
+`hasImage` is `true` when the parser detects Markdown image syntax
+`![](...)` or an HTML `<img>` tag in the question or option text. The
+parser only detects presence — it does not strip, transform, upload,
+or otherwise act on image content.
+
+The parser extracts individual questions only. It has no concept of
+subject, section, or exam-level structure, and does not validate or
+enforce question counts. See
+[Design Philosophy: No Fixed Exam Pattern](#design-philosophy-no-fixed-exam-pattern).
+
+------------------------------------------------------------------------
+
+# Image Handling
+
+Version 1 is text-only. Image upload, processing, and automation are
+out of scope.
+
+When a Question Object has `hasImage: true`, the guided workflow
+pauses before performing any browser interaction for that question and
+informs the user that manual image insertion is required.
+
+The user manually inserts the image directly on the target website,
+then resumes the guided workflow via the existing Execute Step flow.
 
 ------------------------------------------------------------------------
 
