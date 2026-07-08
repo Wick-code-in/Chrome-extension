@@ -6,7 +6,14 @@
   "content_scripts": [
     {
       "matches": ["https://aistudio-scrapper.blockverse.tech/*"],
-      "js": ["lib/parser.js", "content/loader.js", "content/panel.js", "content/content.js"],
+      "js": [
+        "lib/parser.js",
+        "lib/session.js",
+        "lib/stateMachine.js",
+        "content/loader.js",
+        "content/panel.js",
+        "content/content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

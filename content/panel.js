@@ -78,21 +78,6 @@
     const loadButtonEl = panelEl.querySelector('[data-field="load-button"]');
     const filenameEl = panelEl.querySelector('[data-field="filename"]');
 
-    executeButtonEl.addEventListener("click", () => {
-      console.log("[Exam Upload Assistant] Execute Step clicked");
-    });
-
-    loadButtonEl.addEventListener("click", () => {
-      window.ExamUploadAssistantLoader.openFilePicker((result) => {
-        if (result.success) {
-          filenameEl.textContent = result.filename;
-        }
-        statusEl.textContent = result.message;
-      });
-    });
-
-    makeDraggable(panelEl, headerEl);
-
     const api = {
       setQuestionCounter(text) {
         questionCounterEl.textContent = text;
@@ -108,6 +93,49 @@
         progressFillEl.style.width = clamped + "%";
       },
     };
+
+    executeButtonEl.addEventListener("click", () => {
+      const result = window.ExamUploadAssistantStateMachine.executeStep();
+      const session = window.ExamUploadAssistantSession;
+
+      const total = session.getTotalQuestions();
+      const displayIndex = Math.min(session.getCurrentQuestionIndex() + 1, total);
+      const progressPercent = total > 0 ? (session.getCurrentQuestionIndex() / total) * 100 : 0;
+
+      api.setStatus(result.message);
+      api.setCurrentState(session.getCurrentState());
+      api.setQuestionCounter(`${displayIndex} / ${total}`);
+      api.setProgress(progressPercent);
+    });
+
+    loadButtonEl.addEventListener("click", () => {
+      window.ExamUploadAssistantLoader.openFilePicker((result) => {
+        api.setStatus(result.message);
+
+        if (!result.success) {
+          return;
+        }
+
+        filenameEl.textContent = result.filename;
+
+        const session = window.ExamUploadAssistantSession;
+        const rawMarkdown = window.ExamUploadAssistantLoader.getRawMarkdown();
+        const questions = window.ExamUploadAssistantParser.parse(rawMarkdown);
+
+        session.setRawMarkdown(rawMarkdown);
+        session.setQuestions(questions);
+        session.setCurrentState("IDLE");
+
+        const total = session.getTotalQuestions();
+        const displayIndex = total > 0 ? 1 : 0;
+
+        api.setQuestionCounter(`${displayIndex} / ${total}`);
+        api.setCurrentState(session.getCurrentState());
+        api.setProgress(0);
+      });
+    });
+
+    makeDraggable(panelEl, headerEl);
 
     window.ExamUploadAssistantPanel.api = api;
     return api;

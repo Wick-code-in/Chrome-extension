@@ -37,6 +37,8 @@ Never include business logic.
 
 Use MutationObserver-based waiting with a bounded timeout. No fixed-interval polling.
 
+Never use setTimeout(), setInterval(), sleep(), or await new Promise(...) to wait for the UI. Every wait must be driven by an observable condition (element exists, becomes visible, disappears, an attribute changes, a MutationObserver callback fires). Bounded timeouts exist only as a failure limit, never as the synchronization mechanism itself.
+
 ## State Machine
 
 Advance only after success.

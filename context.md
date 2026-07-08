@@ -294,7 +294,9 @@ Business logic belongs in the state machine.
 
 waitForElement() and waitForDisappear() use MutationObserver-based detection, not fixed-interval polling.
 
-All waits have a bounded maximum timeout and return a failure result on timeout, consistent with the {success, message, retryable} contract.
+Never use setTimeout(), setInterval(), sleep(), or await new Promise(...) to wait for the UI. Every wait resolves based on an observable condition (element exists, becomes visible, disappears, an attribute changes, a MutationObserver callback fires, or a Promise resolved by one of these).
+
+All waits have a bounded maximum timeout, used only as a failure limit — never as the synchronization mechanism itself — and return a failure result on timeout, consistent with the {success, message, retryable} contract.
 
 ------------------------------------------------------------------------
 

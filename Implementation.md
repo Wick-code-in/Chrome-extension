@@ -354,7 +354,9 @@ Create reusable browser interaction utilities.
 
 waitForElement() and waitForDisappear() must use MutationObserver-based detection rather than fixed-interval polling.
 
-Every wait must have a bounded maximum timeout.
+Never use setTimeout(), setInterval(), sleep(), or await new Promise(...) to wait for the UI. Every wait must resolve based on an observable condition: an element existing, becoming visible, disappearing, an attribute changing, a MutationObserver callback firing, or a Promise resolved by one of these DOM changes.
+
+Every wait must have a bounded maximum timeout. The timeout exists only as a failure limit — the point at which the helper gives up and reports a timeout error — never as the mechanism used to detect success.
 
 On timeout, the helper must return a failure result consistent with the state machine's {success, message, retryable} contract rather than throwing or hanging indefinitely.
 

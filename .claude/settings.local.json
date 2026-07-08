@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(python3 -m json.tool manifest.json)",
-      "Bash(node --check content/content.js)"
+      "Bash(node --check content/content.js)",
+      "Bash(node --check lib/session.js)",
+      "Bash(node --check lib/stateMachine.js)",
+      "Bash(python3 -m json.tool /Users/sashankrajput/Desktop/Chrome-extension/manifest.json)",
+      "Bash(node --check /Users/sashankrajput/Desktop/Chrome-extension/content/panel.js)"
     ]
   }
 }
