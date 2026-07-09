@@ -274,6 +274,14 @@ Notes
 - Generate AI remains unchanged.
 - Save remains unchanged.
 
+### Implementation Mechanism
+
+`determineNextState` remains the single canonical transition function, shared unchanged by Execute Step, Pass Step, and Jump. Skipping PASTE_OPTIONS and MARK_CORRECT for Numerical questions is implemented as one narrow conditional inside `determineNextState`, keyed on `currentState === "PASTE_QUESTION"` and the current question's type — not as a second parallel transition table, and not as self-skip checks inside `runPasteOptions`/`runMarkCorrect`. Those two handlers are never invoked for a Numerical question; their bodies remain byte-for-byte unchanged. Because Pass Step and Jump already route through the same `determineNextState`, neither needed any code changes to behave correctly for Numerical questions.
+
+### UNKNOWN Type
+
+A question whose type could not be determined from section markers (Phase 3A's `UNKNOWN` fallback) is never inferred as MCQ or Numerical. PREPARE_FORM fails gracefully and retryably before performing any DOM interaction — no click, no wait — with a message directing the operator to fix the source markdown and reload. The transition layer's Numerical-skip check only triggers on `type === "NUMERICAL"` specifically, so an UNKNOWN-typed question that somehow reaches PASTE_QUESTION (e.g. via Pass Step, which bypasses PREPARE_FORM's validation entirely) defaults to the full MCQ-shaped path rather than silently skipping steps.
+
 ## Phase 3 Design Philosophy
 
 The parser decides **what** the current question is.
