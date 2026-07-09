@@ -138,71 +138,167 @@ Success Criteria
 
 The operator can continue uploading from any question without restarting from Question 1.
 
-# Phase 3A - Parser Classification
+# Phase 3 — Numerical Question Support
 
-Purpose
+Phase 3 introduces support for Numerical (Fill Blank) questions.
 
-Determine whether each parsed question is:
-- MCQ
+The implementation is intentionally split into two independent sub-phases: parser classification (3A) and workflow branching (3B). Parser classification belongs entirely in Phase 3A. Workflow branching belongs entirely in Phase 3B. Phase 3 extends the existing architecture rather than duplicating it, and the MCQ implementation must remain as untouched as possible — the existing Version 1 workflow continues functioning exactly as before for MCQ questions.
 
-- Numerical
+## Phase 3A — Parser Classification
 
-# Phase 3B - Prepare Form Enhancement
+Responsibility
 
-Automatically select
+The parser determines the type of every question while parsing the markdown.
 
-MCQ Choice
+The markdown already contains section markers (for example Section A and Section B). Those section markers are the single source of truth.
 
-or
+The parser must:
 
-Fill Blank
+- Detect when a section changes.
+- Track the current section while parsing.
+- Assign a type to every parsed question.
 
-based on parser output.
+Example:
 
-# Phase 3C - Conditional State Machine
+```text
+Section A
 
+Q1
+Q2
+Q3
 
-MCQ
+Section B
 
+Q4
+Q5
+Q6
+```
+
+becomes
+
+```text
+Question 1
+type = MCQ
+
+Question 2
+type = MCQ
+
+Question 3
+type = MCQ
+
+Question 4
+type = NUMERICAL
+
+Question 5
+type = NUMERICAL
+
+Question 6
+type = NUMERICAL
+```
+
+There must never be any hardcoded question counts or assumptions such as "Section A always contains 25 questions." The parser simply follows the markdown.
+
+The parser classifies each question once during parsing. That classification becomes part of the parsed Question object and travels with it for the remainder of the application's lifetime.
+
+After parsing completes, no other component should need to know anything about sections. Sections are a parser concern only.
+
+No automation changes happen during Phase 3A. The state machine remains completely untouched.
+
+## Phase 3B — Numerical Workflow
+
+Responsibility
+
+The state machine reads the current question's type and performs the appropriate workflow.
+
+The parser decides **what** a question is.
+
+The state machine decides **how** to process it.
+
+The state machine must never infer section boundaries or count questions. It simply reads the current Question object's type.
+
+### MCQ Workflow
+
+```text
 PREPARE_FORM
-
 ↓
-
+Question Type = MCQ Choice
+↓
+Marks = 4
+↓
+Penalty = 1
+↓
 PASTE_QUESTION
-
 ↓
-
 PASTE_OPTIONS
-
 ↓
-
 MARK_CORRECT
-
 ↓
-
 GENERATE_AI
-
 ↓
-
 SAVE
+```
 
-Numerical
+This workflow remains unchanged.
 
+### Numerical Workflow
+
+```text
 PREPARE_FORM
-
 ↓
-
+Question Type = Fill Blank
+↓
+Marks = 4
+↓
+Leave Penalty Empty
+↓
 PASTE_QUESTION
-
 ↓
-
+Skip PASTE_OPTIONS
+↓
+Skip MARK_CORRECT
+↓
 GENERATE_AI
-
 ↓
-
 SAVE
+```
 
-# Phase 3D - Live Validation
+Notes
+
+- Question Type must use the existing dropdown option with value `fill_blank`.
+- Marks remain `4`.
+- Penalty is optional on the website.
+- The extension must intentionally leave the penalty field untouched.
+- The extension must never type `0`, `N/A`, or any placeholder into Penalty.
+- The extension does **not** interact with the "+ Add Blank" button.
+- The extension continues to paste Markdown exactly as it already does.
+- Generate AI remains unchanged.
+- Save remains unchanged.
+
+## Phase 3 Design Philosophy
+
+The parser decides **what** the current question is.
+
+The state machine decides **how** to process it.
+
+The parser is the only component that understands sections. The state machine never knows where Section A starts or Section B ends. It only knows the current Question object.
+
+## Phase 3 Interaction with Existing Features
+
+### Jump
+
+Jump requires no additional logic.
+
+If the operator jumps directly to Question 35, and Question 35 was parsed as NUMERICAL, PREPARE_FORM immediately performs the Numerical workflow because the parser already classified Question 35 during markdown parsing.
+
+Jump never scans for sections. Jump never counts questions. Jump simply changes the current Question pointer.
+
+### Pass Step
+
+Pass Step remains unchanged. It skips states exactly as before.
+
+Whether the current question is MCQ or NUMERICAL does not change the philosophy of Pass Step. Pass Step never performs DOM interaction. Pass Step never performs automation.
+
+## Phase 3 Live Validation
 
 Upload complete real JEE papers containing alternating Section A and Section B.
 
