@@ -26,6 +26,10 @@
       </div>
       <button type="button" class="panel-execute-button" data-field="execute-button">Execute Step</button>
       <button type="button" class="panel-pass-button" data-field="pass-button">Pass Step</button>
+      <div class="panel-jump-row">
+        <input type="text" inputmode="numeric" class="panel-jump-input" data-field="jump-input" placeholder="Question #" />
+        <button type="button" class="panel-jump-button" data-field="jump-button">Jump</button>
+      </div>
       <div class="panel-row">
         <span class="panel-label">Status</span>
         <span class="panel-value" data-field="status">Ready</span>
@@ -76,6 +80,8 @@
     const progressFillEl = panelEl.querySelector('[data-field="progress-fill"]');
     const executeButtonEl = panelEl.querySelector('[data-field="execute-button"]');
     const passButtonEl = panelEl.querySelector('[data-field="pass-button"]');
+    const jumpInputEl = panelEl.querySelector('[data-field="jump-input"]');
+    const jumpButtonEl = panelEl.querySelector('[data-field="jump-button"]');
     const headerEl = panelEl.querySelector('[data-field="header"]');
     const loadButtonEl = panelEl.querySelector('[data-field="load-button"]');
     const filenameEl = panelEl.querySelector('[data-field="filename"]');
@@ -117,6 +123,15 @@
     passButtonEl.addEventListener("click", () => {
       const result = window.ExamUploadAssistantStateMachine.passStep();
       refreshFromSession(result);
+    });
+
+    jumpButtonEl.addEventListener("click", () => {
+      const result = window.ExamUploadAssistantStateMachine.jumpToQuestion(jumpInputEl.value);
+      refreshFromSession(result);
+
+      if (result.success) {
+        jumpInputEl.value = "";
+      }
     });
 
     loadButtonEl.addEventListener("click", () => {

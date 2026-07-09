@@ -93,7 +93,24 @@ The operator can skip exactly one Execute Step without reloading the extension.
 
 Purpose
 
-Recover quickly after browser crashes or reloads.
+Recover quickly after browser crashes, page reloads, or any situation where the extension needs to resume from a later question, by directly repointing the extension's tracked question and workflow state.
+
+Jump is NOT an automation feature. The website remains entirely under operator control.
+
+Philosophy
+
+- Jump follows the same philosophy as Pass Step: the operator is always in control, and the extension executes commands rather than inferring intent.
+- Jump changes the extension's internal bookkeeping only — the current-question pointer and the current workflow state.
+- Jump always establishes a deterministic starting point by resetting the workflow to PREPARE_FORM, regardless of the previous state.
+- Jumping to the question the extension is already on is valid and intentional — it provides a quick way to restart the current question's workflow (reset to PREPARE_FORM) without changing the tracked question.
+- Jump must never click anything on the website, open the Add Question dialog, perform any DOM interaction, execute any state handler, or attempt to restore website state.
+- Jump never guesses what the operator has already done on the website — including whether a question has already been uploaded. Jumping backward to an already-uploaded question is allowed and is the operator's responsibility, not a bug.
+
+What Jump does
+
+- Changes the extension's current question pointer to the requested question.
+- Resets the workflow state to PREPARE_FORM.
+- Refreshes the panel (question counter, progress, current state, status).
 
 Implementation Goals
 
@@ -101,22 +118,25 @@ Allow jumping directly to any question contained in the currently loaded markdow
 
 Validation
 
-- Integer only.
-- Must be greater than or equal to 1.
-- Must exist within the loaded file.
+Jump requires an active loaded markdown session. If no session is loaded, Jump fails gracefully with no state change.
 
-No hardcoded maximum question count.
+Jump accepts only positive integers. Leading zeros are accepted as an alternate textual representation of the same integer (e.g. "038" and "00038" both mean 38) — this is not fuzzy parsing, it is exact digit-string normalization. Jump rejects:
+
+- empty input
+- non-numeric input
+- decimal numbers
+- mixed strings (e.g. "38abc")
+- zero
+- negative numbers
+- question numbers that do not exist in the currently loaded markdown file
+
+There is no hardcoded upper limit — the valid range is bounded only by the number of questions in the currently loaded file.
+
+On validation failure, the extension makes no state change, and the operator's input is left untouched so it can be corrected. On success, the input field is cleared.
 
 Success Criteria
 
 The operator can continue uploading from any question without restarting from Question 1.
-
-Parser Classification
-
-Determine whether each parsed question is:
-
-- MCQ
-- Numerical
 
 # Phase 3A - Parser Classification
 

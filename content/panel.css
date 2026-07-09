@@ -109,6 +109,48 @@
   background: rgba(59, 130, 246, 0.2);
 }
 
+.panel-jump-row {
+  display: flex;
+  gap: 6px;
+  margin: 0 12px 10px;
+}
+
+.panel-jump-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #ffffff;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.panel-jump-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.panel-jump-button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.panel-jump-button:hover {
+  background: #2563eb;
+}
+
+.panel-jump-button:active {
+  background: #1d4ed8;
+}
+
 .panel-progress-track {
   margin: 4px 12px 12px;
   height: 6px;
