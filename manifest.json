@@ -3,6 +3,10 @@
   "name": "Exam Upload Assistant",
   "version": "1.0.0",
   "description": "Guided browser assistant for uploading exam questions to the internal Question Bank.",
+  "action": {},
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://aistudio-scrapper.blockverse.tech/*"],
