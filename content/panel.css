@@ -165,3 +165,12 @@
   background: #4caf50;
   transition: width 0.2s ease;
 }
+
+.panel-execute-button:disabled,
+.panel-pass-button:disabled,
+.panel-jump-input:disabled,
+.panel-jump-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}

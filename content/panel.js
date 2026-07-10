@@ -106,6 +106,7 @@
       const session = window.ExamUploadAssistantSession;
 
       const total = session.getTotalQuestions();
+      const hasQuestions = total > 0;
       const displayIndex = Math.min(session.getCurrentQuestionIndex() + 1, total);
       const progressPercent = total > 0 ? (session.getCurrentQuestionIndex() / total) * 100 : 0;
 
@@ -113,6 +114,15 @@
       api.setCurrentState(session.getCurrentState());
       api.setQuestionCounter(`${displayIndex} / ${total}`);
       api.setProgress(progressPercent);
+
+      // Truthful UI: these controls depend on an active session (at least
+      // one parsed question). A completed upload still counts as active —
+      // hasCurrentQuestion() would go false at completion, which is why
+      // getTotalQuestions() is the predicate here, not that.
+      executeButtonEl.disabled = !hasQuestions;
+      passButtonEl.disabled = !hasQuestions;
+      jumpInputEl.disabled = !hasQuestions;
+      jumpButtonEl.disabled = !hasQuestions;
     }
 
     executeButtonEl.addEventListener("click", async () => {
@@ -136,9 +146,8 @@
 
     loadButtonEl.addEventListener("click", () => {
       window.ExamUploadAssistantLoader.openFilePicker((result) => {
-        api.setStatus(result.message);
-
         if (!result.success) {
+          api.setStatus(result.message);
           return;
         }
 
@@ -152,14 +161,13 @@
         session.setQuestions(questions);
         session.setCurrentState("IDLE");
 
-        const total = session.getTotalQuestions();
-        const displayIndex = total > 0 ? 1 : 0;
-
-        api.setQuestionCounter(`${displayIndex} / ${total}`);
-        api.setCurrentState(session.getCurrentState());
-        api.setProgress(0);
+        refreshFromSession(result);
       });
     });
+
+    // Controls that depend on an active session start disabled — no file has
+    // been loaded yet at panel creation time.
+    refreshFromSession({ message: "Ready" });
 
     makeDraggable(panelEl, headerEl);
 
