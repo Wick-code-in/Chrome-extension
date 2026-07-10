@@ -207,61 +207,49 @@ It is simply truthful UI.
 
 ## Goal
 
-Improve operator feedback.
+Improve operator-facing wording only. No workflow, transition, or automation change.
 
-Instead of generic messages
+## Scope
 
-PREPARE_FORM completed.
+Reword operator-facing success messages only.
 
-provide meaningful summaries.
+Failure, retry, timeout, and validation messages keep their existing wording — they serve a different purpose (actionable recovery guidance) and are unaffected by this phase.
 
-Examples
+## Wording
 
-MCQ
+Replace internal state-machine tokens with operator-friendly wording:
 
-✓ Selected MCQ Choice
+PREPARE_FORM completed. → Question prepared.
 
-✓ Marks set to 4
+PASTE_QUESTION completed. → Question pasted.
 
-✓ Penalty set to 1
+PASTE_OPTIONS completed. → Options pasted.
 
-Numerical
+MARK_CORRECT completed. → Correct answer selected.
 
-✓ Selected Fill Blank
+GENERATE_AI completed. → Generate with AI clicked.
 
-✓ Marks set to 4
+SAVE completed. → Save clicked.
 
-✓ Penalty skipped
+GENERATE_AI and SAVE are phrased as the extension's own confirmed action (a click), not the website's outcome — the extension never waits for or verifies AI generation or the save itself completing, so the message must not claim more than it knows.
 
-Jump
+Jump drops the internal detail it used to expose:
 
-✓ Jumped to Question 38
+Jumped to Question 38. State reset to PREPARE_FORM. → Jumped to Question 38.
 
-Pass
+## Pass Step
 
-✓ Skipped PASTE_OPTIONS
+The panel reports the extension's current workflow state, not how that state was reached. Pass Step displays exactly the same message Execute Step would show for the same state — no separate "Skipped ..." wording, and no exposure of internal state names.
 
-Completion
+## Completion
 
-Instead of
+COMPLETE and the end of NEXT_QUESTION both report:
 
-All questions complete.
+Upload complete.
 
-display
+No question counts, no per-type breakdown, no checklist summary, no congratulatory text — those were considered and rejected as unverifiable or unnecessary verbosity. The message states only what the extension actually knows: the workflow has reached its terminal state.
 
-Upload Complete
-
-75 Questions Uploaded
-
-60 MCQ
-
-15 Numerical
-
-Completed Successfully
-
-These are purely informational.
-
-They never change workflow behaviour.
+These are purely informational. They never change workflow behaviour.
 
 ---
 
