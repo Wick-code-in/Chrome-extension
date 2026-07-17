@@ -9,7 +9,8 @@
       "Bash(node --check /Users/sashankrajput/Desktop/Chrome-extension/content/panel.js)",
       "Bash(python3 -)",
       "Bash(node *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "WebFetch(domain:docxsity.com)"
     ]
   }
 }
