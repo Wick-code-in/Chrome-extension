@@ -155,10 +155,11 @@
 
         const session = window.ExamUploadAssistantSession;
         const rawMarkdown = window.ExamUploadAssistantLoader.getRawMarkdown();
-        const questions = window.ExamUploadAssistantParser.parse(rawMarkdown);
+        const parsed = window.ExamUploadAssistantParser.parseDocument(rawMarkdown);
 
         session.setRawMarkdown(rawMarkdown);
-        session.setQuestions(questions);
+        session.setExamType(parsed.examType);
+        session.setQuestions(parsed.questions);
         session.setCurrentState("IDLE");
 
         refreshFromSession(result);

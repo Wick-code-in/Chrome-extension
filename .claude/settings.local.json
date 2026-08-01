@@ -10,7 +10,13 @@
       "Bash(python3 -)",
       "Bash(node *)",
       "Bash(python3 *)",
-      "WebFetch(domain:docxsity.com)"
+      "WebFetch(domain:docxsity.com)",
+      "Bash(grep -nE '^\\\\s*\\\\S.*[0-9]+\\\\s*\\\\\\(.+\\\\\\).*:\\\\s*$' UPSC_CSE_Prelims_2025_GS_Paper_I_English.md UPSC_CSE_Prelims_2025_GS_Paper_II_English.md)",
+      "Bash(grep -nE '^\\\\s*\\\\S.*[0-9]+\\\\s*\\\\\\(.+\\\\\\).*:\\\\s*$' UPSC_CSE_Prelims_2025_GS_Paper_I_Hindi.md UPSC_CSE_Prelims_2025_GS_Paper_II_Hindi.md)",
+      "Bash(grep -nE '^\\\\s*\\\\S+\\\\s*[–-]\\\\s*[0-9]+\\\\s*$' UPSC_CSE_Prelims_2025_GS_Paper_I_English.md UPSC_CSE_Prelims_2025_GS_Paper_II_English.md)",
+      "Bash(grep -nE '^\\\\s*\\\\S+\\\\s*[–-]\\\\s*[0-9]+\\\\s*$' UPSC_CSE_Prelims_2025_GS_Paper_I_Hindi.md UPSC_CSE_Prelims_2025_GS_Paper_II_Hindi.md)",
+      "Bash(grep -nE '^\\\\s*\\\\S+\\\\s*[–-]\\\\s*[0-9]+\\\\s*$' UPSC_CSE_Prelims_2025_GS_Paper_II_English.md)",
+      "Bash(awk 'NR==486,NR==600' UPSC_CSE_Prelims_2025_GS_Paper_II_English.md)"
     ]
   }
 }
