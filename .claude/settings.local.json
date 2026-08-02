@@ -20,7 +20,14 @@
       "Bash(grep -oE '^\\\\*\\\\*Ans\\\\.\\\\*\\\\*.*$' UPSC_CSE_Prelims_2023_GS_Paper_I_English.md)",
       "Bash(grep -oE '^\\\\*\\\\*.{0,15}\\\\*\\\\*.*$' UPSC_CSE_Prelims_2023_GS_Paper_I_Hindi.md)",
       "Bash(grep -v '^\\([a-d]\\)$')",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(textutil -convert txt samples/dom.rtf -output /private/tmp/claude-501/-Users-sashankrajput-Desktop-Chrome-extension/3e8b20bc-924c-4704-857e-0ffacf339843/scratchpad/dom.txt)",
+      "Bash(awk '{print length, NR}' dom.txt)",
+      "Bash(xargs ls -la)",
+      "Bash(rm *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(grep -oE '<label[^>]*>.{0,80}' /private/tmp/claude-501/-Users-sashankrajput-Desktop-Chrome-extension/3e8b20bc-924c-4704-857e-0ffacf339843/scratchpad/sections/01_2_Instruction_title_block.html)"
     ]
   }
 }
