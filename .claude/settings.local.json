@@ -19,7 +19,8 @@
       "Bash(awk 'NR==486,NR==600' UPSC_CSE_Prelims_2025_GS_Paper_II_English.md)",
       "Bash(grep -oE '^\\\\*\\\\*Ans\\\\.\\\\*\\\\*.*$' UPSC_CSE_Prelims_2023_GS_Paper_I_English.md)",
       "Bash(grep -oE '^\\\\*\\\\*.{0,15}\\\\*\\\\*.*$' UPSC_CSE_Prelims_2023_GS_Paper_I_Hindi.md)",
-      "Bash(grep -v '^\\([a-d]\\)$')"
+      "Bash(grep -v '^\\([a-d]\\)$')",
+      "Bash(git stash *)"
     ]
   }
 }
