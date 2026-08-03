@@ -27,7 +27,14 @@
       "Bash(rm *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(grep -oE '<label[^>]*>.{0,80}' /private/tmp/claude-501/-Users-sashankrajput-Desktop-Chrome-extension/3e8b20bc-924c-4704-857e-0ffacf339843/scratchpad/sections/01_2_Instruction_title_block.html)"
+      "Bash(grep -oE '<label[^>]*>.{0,80}' /private/tmp/claude-501/-Users-sashankrajput-Desktop-Chrome-extension/3e8b20bc-924c-4704-857e-0ffacf339843/scratchpad/sections/01_2_Instruction_title_block.html)",
+      "Bash(git show *)",
+      "Read(//tmp/**)",
+      "Bash(git checkout *)",
+      "Bash(grep -n -B2 \"^\\\\*\\\\*Ans\\\\.\\\\*\\\\* *$\\\\|^\\\\*\\\\*Ans\\\\.\\\\*\\\\*\\\\s*\\(\\)\" samples/UPSC_2021_GS_Paper_II_English.md)",
+      "Bash(awk -F'[\\(\\)]' '{print $2}')",
+      "Bash(grep -v \"\\(\\\\\\([a-d]\\\\\\)\\)$\")",
+      "Bash(grep -v \"\\([a-d]\\)$\")"
     ]
   }
 }
