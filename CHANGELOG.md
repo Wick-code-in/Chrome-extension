@@ -2,6 +2,10 @@
 
 All notable changes to the Exam Upload Assistant are documented in this file.
 
+## Known Limitations
+
+- **Question Type dropdown, standalone question immediately after a Question Group.** If a standalone question immediately follows a Question Group, the Question Type dropdown may occasionally fail to select MCQ (Marks, Penalty, and Question Text are unaffected). This is a rare, transition-specific issue — Normal → Normal, Group → Group, and Normal → Group are unaffected. **Manual workaround:** select MCQ manually on the site and continue. Open as of 2026-08-03: root-caused to `lib/selectors.js`'s `questionTypeDropdown` (an indirect, cross-field lookup anchored on the "Marks" label rather than the field's own), but multiple live-diagnosis and fix attempts did not produce a confirmed resolution; the investigation was shelved to avoid destabilizing the working Question Group flow. See the comment at `questionTypeDropdown` in `lib/selectors.js`.
+
 ## [1.0.0] — Version 1 Complete — 2026-07-08
 
 Version 1 is feature-complete and live-tested end to end, including across multiple consecutive questions: loading a Markdown file of MCQ questions and guiding a human operator, one Execute Step at a time, through creating each question on the target site.

@@ -34,7 +34,13 @@
       "Bash(grep -n -B2 \"^\\\\*\\\\*Ans\\\\.\\\\*\\\\* *$\\\\|^\\\\*\\\\*Ans\\\\.\\\\*\\\\*\\\\s*\\(\\)\" samples/UPSC_2021_GS_Paper_II_English.md)",
       "Bash(awk -F'[\\(\\)]' '{print $2}')",
       "Bash(grep -v \"\\(\\\\\\([a-d]\\\\\\)\\)$\")",
-      "Bash(grep -v \"\\([a-d]\\)$\")"
+      "Bash(grep -v \"\\([a-d]\\)$\")",
+      "Bash(textutil -convert txt \"samples/dom .rtf\" -output /tmp/dom_new.txt)",
+      "Bash(textutil -convert txt \"samples/dom.rtf\" -output /tmp/dom_full.txt)",
+      "Bash(npm ls *)",
+      "Bash(npx --yes jsdom --version)",
+      "Bash(textutil -convert txt \"samples/new dom.rtf\" -output /tmp/new_dom.txt)",
+      "Bash(echo \"---exit code: $?---\")"
     ]
   }
 }
