@@ -148,48 +148,6 @@
       return penaltyResult;
     }
 
-    // --- TEMPORARY DIAGNOSTICS (PREPARE_FORM verification phase only) ---
-    // Read-only: re-resolves the fields already set above via the existing,
-    // side-effect-free DomHelpers.findElement — no new interaction, no
-    // change to success/failure logic or the returned result. Remove this
-    // block once PREPARE_FORM is verified and committed, before starting
-    // PASTE_QUESTION.
-    {
-      const typeElement = DomHelpers.findElement(selectors.questionTypeDropdown, root);
-      const actualQuestionType = typeElement
-        ? (typeElement.querySelector(".ng-value")?.textContent.trim() ?? "")
-        : "(not found)";
-
-      const marksElement = DomHelpers.findElement(selectors.marksInput, root);
-      const actualMarks = marksElement ? marksElement.value : "(not found)";
-
-      const penaltyElement = DomHelpers.findElement(selectors.penaltyInput, root);
-      const actualPenalty = penaltyElement ? penaltyElement.value : "(not found)";
-
-      const matchLabel = (expected, actual) => (String(expected) === String(actual) ? "MATCH" : "MISMATCH");
-
-      console.log(
-        [
-          "[Docxsity][PREPARE_FORM]",
-          `- Exam Type: ${examType}`,
-          `- Modal Found: ${modalResult.success ? "✓" : "✗"}`,
-          "- Question Type:",
-          `  - Expected: ${questionTypeValue}`,
-          `  - Actual: ${actualQuestionType}`,
-          `  - ${matchLabel(questionTypeValue, actualQuestionType)}`,
-          "- Marks:",
-          `  - Expected: ${markingScheme.marks}`,
-          `  - Actual: ${actualMarks}`,
-          `  - ${matchLabel(markingScheme.marks, actualMarks)}`,
-          "- Penalty:",
-          `  - Expected: ${markingScheme.penalty}`,
-          `  - Actual: ${actualPenalty}`,
-          `  - ${matchLabel(markingScheme.penalty, actualPenalty)}`,
-        ].join("\n")
-      );
-    }
-    // --- END TEMPORARY DIAGNOSTICS ---
-
     return {
       success: true,
       message: getStateSuccessMessage("PREPARE_FORM"),
