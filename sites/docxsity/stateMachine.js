@@ -7,6 +7,14 @@
   const POSITIVE_INTEGER_PATTERN = /^\d+$/;
   const OPTION_LETTERS = ["A", "B", "C", "D"];
 
+  // Own copy of the same UPSC/no-answer-key distinction
+  // sites/modality/stateMachine.js makes — not shared code, just the same
+  // already-established business fact (some UPSC papers ship with no
+  // answer key at all) reused for the same operator-facing message.
+  function isUpscExamType(examType) {
+    return examType === "UPSC_PAPER_I" || examType === "UPSC_PAPER_II";
+  }
+
   // Real automation replaces makeStubHandler's callers one state at a time
   // as each is itself live-verified (PREPARE_FORM first; see the Docxsity
   // V2 design doc's phase roadmap), mirroring the run*/STATE_HANDLERS shape
@@ -38,7 +46,7 @@
       case "PASTE_OPTIONS":
         return "Options pasted.";
       case "MARK_CORRECT":
-        return "MARK_CORRECT completed (stub — Docxsity automation not yet implemented).";
+        return "Correct answer selected.";
       case "GENERATE_AI":
         return "GENERATE_AI completed (stub — Docxsity automation not yet implemented).";
       case "ADD_TAGS":
@@ -340,6 +348,92 @@
     };
   }
 
+  // Automates the per-option "Mark as Correct" button, not the Correct
+  // Answer dropdown — the button is identical in both standalone and Sub
+  // Question contexts, while the dropdown's control type isn't (native
+  // <select> vs <ng-select>, live-confirmed). Reuses the same
+  // pasteOptions.optionCard(number) resolution PASTE_OPTIONS already uses;
+  // no new lookup strategy needed.
+  async function runMarkCorrect() {
+    if (!Session.hasCurrentQuestion()) {
+      return {
+        success: false,
+        message: "No current question to mark correct.",
+        retryable: false,
+      };
+    }
+
+    const question = Session.getCurrentQuestion();
+
+    // VERIFIED: Fill Blank has no correct-answer mechanism at all — its
+    // "Select Correct Answer" / per-option buttons are replaced entirely by
+    // "Answers for Blanks" / "Case Sensitive Matching". Not an error: this
+    // state simply doesn't apply to this question type.
+    if (question.type === "NUMERICAL") {
+      return {
+        success: true,
+        message: "Fill Blank questions have no correct-answer mechanism to mark — skipped.",
+        retryable: false,
+      };
+    }
+
+    if (!question.correctAnswer) {
+      const message = isUpscExamType(Session.getExamType())
+        ? "This paper does not contain an answer key for this question. Mark the correct option manually on the target website, then use Pass Step to continue."
+        : "This question has no correct answer to select.";
+
+      return {
+        success: false,
+        message,
+        retryable: false,
+      };
+    }
+
+    const number = Selectors.pasteOptions.optionNumberByLetter[question.correctAnswer];
+
+    if (!number) {
+      return {
+        success: false,
+        message: `Unrecognized correct answer letter: ${question.correctAnswer}.`,
+        retryable: false,
+      };
+    }
+
+    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    if (!modalResult.success) {
+      return modalResult;
+    }
+
+    const root = modalResult.element;
+
+    const cardResult = await DomHelpers.waitForElement(Selectors.pasteOptions.optionCard(number), { root });
+    if (!cardResult.success) {
+      return cardResult;
+    }
+
+    const clickResult = DomHelpers.clickElement(Selectors.markCorrect.correctButtonSelector, { root: cardResult.element });
+    if (!clickResult.success) {
+      return clickResult;
+    }
+
+    // Completion signal: wait for THIS option's own button to carry the
+    // active class — an observable DOM state, not a fixed delay.
+    const activeSelector = `${Selectors.markCorrect.correctButtonSelector}.${Selectors.markCorrect.activeButtonClass}`;
+    const activeResult = await DomHelpers.waitForElement(activeSelector, { root: cardResult.element });
+
+    if (!activeResult.success) {
+      return activeResult;
+    }
+
+    return {
+      success: true,
+      message: getStateSuccessMessage("MARK_CORRECT"),
+      retryable: false,
+      focusTarget: activeResult.element,
+      focusRoot: cardResult.element,
+    };
+  }
+
   function makeStubHandler(stateName) {
     return function () {
       if (!Session.hasCurrentQuestion()) {
@@ -377,7 +471,7 @@
     PREPARE_FORM: runPrepareForm,
     PASTE_QUESTION: runPasteQuestion,
     PASTE_OPTIONS: runPasteOptions,
-    MARK_CORRECT: makeStubHandler("MARK_CORRECT"),
+    MARK_CORRECT: runMarkCorrect,
     GENERATE_AI: makeStubHandler("GENERATE_AI"),
     ADD_TAGS: makeStubHandler("ADD_TAGS"),
     SAVE: makeStubHandler("SAVE"),

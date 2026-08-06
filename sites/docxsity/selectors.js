@@ -137,6 +137,26 @@
       // numbering, not shared with or derived from it).
       optionNumberByLetter: { A: 1, B: 2, C: 3, D: 4 },
     },
+    // VERIFIED live (2026-08-06, MARK_CORRECT reconnaissance). A separate
+    // "Select Correct Answer" summary control also exists (bidirectionally
+    // synced with the button below), but is deliberately NOT automated: its
+    // control type differs by context (a native <select> in the standalone
+    // form, an <ng-select> inside a Sub Question card — confirmed both
+    // live), whereas the per-option button is identical in both contexts.
+    markCorrect: {
+      // VERIFIED: <button class="qm-correct-btn">Mark as Correct</button>,
+      // one per option card, found via a plain selector scoped to the
+      // option's own card (the resolved element from pasteOptions.optionCard
+      // above) — same two-step root-then-field pattern as the option's
+      // markdown button, no new lookup strategy needed.
+      correctButtonSelector: "button.qm-correct-btn",
+      // VERIFIED: this exact class is added to the clicked button (and only
+      // that button — confirmed live that selecting a different option
+      // moves it, never leaves two active at once) the moment it's marked
+      // correct. No aria-pressed or other attribute is used — class is the
+      // only observable state.
+      activeButtonClass: "qm-correct-btn--active",
+    },
   };
 
   window.ExamUploadAssistantSelectors = SELECTORS;
