@@ -125,17 +125,73 @@
       jumpButtonEl.disabled = !hasQuestions;
     }
 
+    // Panel-wide busy guard, state-agnostic: executeStep() is async and can
+    // be mid-flight for anywhere from milliseconds to tens of seconds (e.g.
+    // an AI generation step). Nothing previously stopped Execute Step,
+    // Pass Step, or Jump from running again — or from each other — during
+    // that window: Session's current state isn't written until the
+    // in-flight handler resolves, so a second Execute Step click in that
+    // window would read the same state and re-dispatch to the same
+    // handler, and Pass Step/Jump would mutate Session concurrently with
+    // whatever the in-flight step is still doing against the page. Disabling
+    // all four controls synchronously, before the first `await`, closes
+    // that window for real clicks (disabled controls don't receive click
+    // events); isPanelBusy is kept as the explicit, self-documenting source
+    // of truth alongside it, and is checked in every handler as a second,
+    // explicit line of defense. Pass Step and Jump are themselves fully
+    // synchronous (no `await` in either call chain) and have no
+    // re-entrancy problem of their own — this guard exists only to keep
+    // them from running concurrently with an in-flight Execute Step. No
+    // state-machine or state-handler logic changes — this protects the
+    // panel as a whole, for every site and every state equally.
+    let isPanelBusy = false;
+
+    function setPanelBusy(busy) {
+      isPanelBusy = busy;
+      executeButtonEl.disabled = busy;
+      passButtonEl.disabled = busy;
+      jumpInputEl.disabled = busy;
+      jumpButtonEl.disabled = busy;
+    }
+
     executeButtonEl.addEventListener("click", async () => {
-      const result = await window.ExamUploadAssistantStateMachine.executeStep();
-      refreshFromSession(result);
+      if (isPanelBusy) {
+        return;
+      }
+
+      setPanelBusy(true);
+
+      try {
+        const result = await window.ExamUploadAssistantStateMachine.executeStep();
+        refreshFromSession(result);
+      } finally {
+        isPanelBusy = false;
+        // Safety net in case refreshFromSession above never ran (e.g. an
+        // unexpected rejection) — restore every control to the same
+        // hasQuestions-driven state refreshFromSession would have set,
+        // rather than leaving the panel stuck busy.
+        const hasQuestions = window.ExamUploadAssistantSession.getTotalQuestions() > 0;
+        executeButtonEl.disabled = !hasQuestions;
+        passButtonEl.disabled = !hasQuestions;
+        jumpInputEl.disabled = !hasQuestions;
+        jumpButtonEl.disabled = !hasQuestions;
+      }
     });
 
     passButtonEl.addEventListener("click", () => {
+      if (isPanelBusy) {
+        return;
+      }
+
       const result = window.ExamUploadAssistantStateMachine.passStep();
       refreshFromSession(result);
     });
 
     jumpButtonEl.addEventListener("click", () => {
+      if (isPanelBusy) {
+        return;
+      }
+
       const result = window.ExamUploadAssistantStateMachine.jumpToQuestion(jumpInputEl.value);
       refreshFromSession(result);
 
