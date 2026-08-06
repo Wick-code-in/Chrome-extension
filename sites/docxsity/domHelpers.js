@@ -331,6 +331,61 @@
     return { success: true, message: `Selected dropdown value "${value}": ${describeSelector(selector)}`, retryable: false };
   }
 
+  // Composition, not a new primitive: click a trigger button, wait for the
+  // import dialog, fill its raw-markdown textarea, click confirm, wait for
+  // the dialog to disappear. Mirrors sites/modality/domHelpers.js's own
+  // pasteMarkdown() shape exactly (same site-independent DESIGN, not shared
+  // code) — including the same reasoning for why `root` is stripped back
+  // out after the trigger click: VERIFIED live that Docxsity's "Paste
+  // Markdown Data" dialog is NOT a descendant of the Add Question modal (a
+  // TinyMCE-native dialog appended straight to document.body), so every
+  // lookup from the dialog onward deliberately searches unscoped rather
+  // than staying inside the caller's `root`.
+  //   triggerButton — the field-specific button that opens the dialog
+  //   modal         — the dialog container (used for both appearing and
+  //                   disappearing waits)
+  //   textarea      — the dialog's raw-markdown textarea
+  //   confirmButton — the dialog's confirm/insert button
+  async function pasteMarkdown(selectors, markdownText, options = {}) {
+    const { triggerButton, modal, textarea, confirmButton } = selectors;
+    const { root, ...modalOptions } = options;
+
+    const clickTriggerResult = clickElement(triggerButton, options);
+    if (!clickTriggerResult.success) {
+      return clickTriggerResult;
+    }
+
+    const waitModalResult = await waitForElement(modal, modalOptions);
+    if (!waitModalResult.success) {
+      return waitModalResult;
+    }
+
+    // Scope the remaining lookups to the dialog element we just confirmed,
+    // rather than re-searching the whole document.
+    const withinModal = { ...modalOptions, root: waitModalResult.element };
+
+    const fillResult = fillInput(textarea, markdownText, withinModal);
+    if (!fillResult.success) {
+      return fillResult;
+    }
+
+    const confirmResult = clickElement(confirmButton, withinModal);
+    if (!confirmResult.success) {
+      return confirmResult;
+    }
+
+    const waitDisappearResult = await waitForDisappear(modal, modalOptions);
+    if (!waitDisappearResult.success) {
+      return waitDisappearResult;
+    }
+
+    return {
+      success: true,
+      message: `Pasted markdown via ${describeSelector(triggerButton)}`,
+      retryable: false,
+    };
+  }
+
   function scrollIntoView(target, root = document) {
     const element = target && typeof target === "object" && "nodeType" in target ? target : findElement(target, root);
 
@@ -346,6 +401,7 @@
     waitForDisappear,
     clickElement,
     fillInput,
+    pasteMarkdown,
     selectDropdown,
     scrollIntoView,
   };

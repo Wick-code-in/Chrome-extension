@@ -33,7 +33,7 @@
       case "PREPARE_FORM":
         return "Question prepared.";
       case "PASTE_QUESTION":
-        return "PASTE_QUESTION completed (stub — Docxsity automation not yet implemented).";
+        return "Question pasted.";
       case "PASTE_OPTIONS":
         return "PASTE_OPTIONS completed (stub — Docxsity automation not yet implemented).";
       case "MARK_CORRECT":
@@ -157,6 +157,63 @@
     };
   }
 
+  async function runPasteQuestion() {
+    if (!Session.hasCurrentQuestion()) {
+      return {
+        success: false,
+        message: "No current question to paste.",
+        retryable: false,
+      };
+    }
+
+    const question = Session.getCurrentQuestion();
+
+    if (!question.questionMarkdown) {
+      return {
+        success: false,
+        message: "This question has no question text to paste.",
+        retryable: false,
+      };
+    }
+
+    // The Add Question modal PREPARE_FORM opened is still on the page —
+    // state handlers don't carry DOM references to each other (mirrors
+    // sites/modality/stateMachine.js's own resolveCurrentRoot, which
+    // re-resolves its root fresh every state rather than threading one
+    // through Session), so re-resolve it the same way PREPARE_FORM did.
+    // Since the modal is already open, this settles near-instantly.
+    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    if (!modalResult.success) {
+      return modalResult;
+    }
+
+    const root = modalResult.element;
+    const modalSelectors = Selectors.markdownImportModal;
+
+    const pasteResult = await DomHelpers.pasteMarkdown(
+      {
+        triggerButton: Selectors.pasteQuestion.markdownButton,
+        modal: modalSelectors.container,
+        textarea: modalSelectors.rawMarkdownTextarea,
+        confirmButton: modalSelectors.renderAndInsertButton,
+      },
+      question.questionMarkdown,
+      { root }
+    );
+
+    if (!pasteResult.success) {
+      return pasteResult;
+    }
+
+    return {
+      success: true,
+      message: getStateSuccessMessage("PASTE_QUESTION"),
+      retryable: false,
+      focusTarget: Selectors.pasteQuestion.markdownButton,
+      focusRoot: root,
+    };
+  }
+
   function makeStubHandler(stateName) {
     return function () {
       if (!Session.hasCurrentQuestion()) {
@@ -192,7 +249,7 @@
   const STATE_HANDLERS = {
     IDLE: runIdle,
     PREPARE_FORM: runPrepareForm,
-    PASTE_QUESTION: makeStubHandler("PASTE_QUESTION"),
+    PASTE_QUESTION: runPasteQuestion,
     PASTE_OPTIONS: makeStubHandler("PASTE_OPTIONS"),
     MARK_CORRECT: makeStubHandler("MARK_CORRECT"),
     GENERATE_AI: makeStubHandler("GENERATE_AI"),
