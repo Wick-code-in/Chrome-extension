@@ -213,6 +213,25 @@
       // complete completion signal — no closest() walk needed.
       tagPill: (subject) => ({ tag: "span", text: subject }),
     },
+    // VERIFIED live (2026-08-06, SAVE reconnaissance) — including one real
+    // save (explicit user go-ahead) and one real validation-failure test.
+    save: {
+      // VERIFIED: <button class="wm-btn wm-sm-btn ..." type="button">Save
+      // Question</button> — not a native form submit, a click handler like
+      // everything else. Same button text also exists inside the Add
+      // Question Group modal, but Question Groups are out of scope — this
+      // selector is only ever used scoped to the standalone Add Question
+      // modal root.
+      saveButton: { tag: "button", text: "Save Question" },
+      // VERIFIED: on a validation failure (tested live with an empty form),
+      // the modal does NOT close, and inline messages appear as elements
+      // with this exact class — one per invalid field ("Question text is
+      // required.", "Option text is required." x4, "Please select a
+      // correct answer."). Used only to build an actionable failure
+      // message after the completion-signal wait times out — never the
+      // wait condition itself.
+      validationErrorSelector: ".qm-error",
+    },
   };
 
   window.ExamUploadAssistantSelectors = SELECTORS;

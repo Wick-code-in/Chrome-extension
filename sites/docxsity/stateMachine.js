@@ -56,7 +56,7 @@
       case "ADD_TAGS":
         return "Tag added.";
       case "SAVE":
-        return "SAVE completed (stub — Docxsity automation not yet implemented).";
+        return "Question saved.";
       case "NEXT_QUESTION":
         return Session.hasCurrentQuestion() ? "Moved to next question." : "Upload complete.";
       case "COMPLETE":
@@ -571,6 +571,61 @@
     };
   }
 
+  // Standalone Add Question only — no Question Group save behavior here.
+  async function runSave() {
+    if (!Session.hasCurrentQuestion()) {
+      return {
+        success: false,
+        message: "No current question to save.",
+        retryable: false,
+      };
+    }
+
+    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    if (!modalResult.success) {
+      return modalResult;
+    }
+
+    const root = modalResult.element;
+    const selectors = Selectors.save;
+
+    const clickResult = DomHelpers.clickElement(selectors.saveButton, { root });
+    if (!clickResult.success) {
+      return clickResult;
+    }
+
+    // Completion signal: the Add Question modal disappearing — not a fixed
+    // delay, not network activity, not a toast (none was confirmed to
+    // exist reliably in reconnaissance).
+    const disappearResult = await DomHelpers.waitForDisappear(Selectors.addQuestionModal);
+
+    if (!disappearResult.success) {
+      // The modal is still open, so `root` is still a live, attached
+      // element — read its inline validation errors directly rather than
+      // surfacing a generic timeout. VERIFIED live: on an invalid form the
+      // modal stays open and these appear, one per invalid field.
+      const errorMessages = Array.from(root.querySelectorAll(selectors.validationErrorSelector))
+        .map((element) => element.textContent.trim())
+        .filter(Boolean);
+
+      if (errorMessages.length > 0) {
+        return {
+          success: false,
+          message: `Could not save the question: ${errorMessages.join(" ")}`,
+          retryable: true,
+        };
+      }
+
+      return disappearResult;
+    }
+
+    return {
+      success: true,
+      message: getStateSuccessMessage("SAVE"),
+      retryable: false,
+    };
+  }
+
   function makeStubHandler(stateName) {
     return function () {
       if (!Session.hasCurrentQuestion()) {
@@ -611,7 +666,7 @@
     MARK_CORRECT: runMarkCorrect,
     GENERATE_AI: runGenerateAi,
     ADD_TAGS: runAddTags,
-    SAVE: makeStubHandler("SAVE"),
+    SAVE: runSave,
     NEXT_QUESTION: runNextQuestion,
     COMPLETE: runComplete,
   };
