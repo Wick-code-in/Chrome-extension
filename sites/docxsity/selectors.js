@@ -187,6 +187,32 @@
       // still trims to one string).
       explanationEditor: { labelText: "Explanation (Optional)", find: "app-rich-editor" },
     },
+    // VERIFIED live (2026-08-06, ADD_TAGS reconnaissance) — added a real
+    // tag and inspected the resulting structure, not just the empty state.
+    addTags: {
+      // VERIFIED: <div class="tib-wrapper"><label class="tib-label"> Tags &
+      // Sub Tags </label>...<input class="tib-input" placeholder="Add
+      // tag..."></div>. The label's raw textContent has surrounding
+      // whitespace (" Tags & Sub Tags ") — {labelText} trims before
+      // comparing, so "Tags & Sub Tags" still matches correctly. Only one
+      // input exists — Subject Tags and Sub Tags are NOT separate controls,
+      // see tagPill below for how the hierarchy actually works.
+      tagInput: { labelText: "Tags & Sub Tags", find: "input.tib-input" },
+      // VERIFIED: <button class="tib-add-btn">+ Tag</button>, a single
+      // instance per modal (standalone form) — safe to match by text alone,
+      // same pattern as other single-instance action buttons
+      // (Render & Insert, Save Question).
+      addTagButton: { tag: "button", text: "+ Tag" },
+      // VERIFIED: once added, a tag renders as <span
+      // class="tib-tag-pill">{subject}</span> inside a new .tib-tag-block,
+      // sibling to a <button class="tib-remove-tag-btn">Remove</button> and
+      // a "+ Sub Tag" button (both deliberately never touched — no sub-tag
+      // data exists in the parsed Question Object, and Remove is obviously
+      // destructive). The pill's own trimmed text is exactly the tag value
+      // and nothing else, so {tag:"span", text: subject} alone is a
+      // complete completion signal — no closest() walk needed.
+      tagPill: (subject) => ({ tag: "span", text: subject }),
+    },
   };
 
   window.ExamUploadAssistantSelectors = SELECTORS;

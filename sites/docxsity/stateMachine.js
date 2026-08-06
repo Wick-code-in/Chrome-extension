@@ -54,7 +54,7 @@
       case "GENERATE_AI":
         return "AI content generated.";
       case "ADD_TAGS":
-        return "ADD_TAGS completed (stub — Docxsity automation not yet implemented).";
+        return "Tag added.";
       case "SAVE":
         return "SAVE completed (stub — Docxsity automation not yet implemented).";
       case "NEXT_QUESTION":
@@ -514,6 +514,63 @@
     };
   }
 
+  // Exactly one responsibility: transfer question.subject (parsed directly
+  // from the source document — never AI-inferred, never guessed) into a
+  // top-level tag. Never touches "+ Sub Tag" or "Remove" — no sub-tag data
+  // exists in the parsed Question Object, and Remove is destructive.
+  async function runAddTags() {
+    if (!Session.hasCurrentQuestion()) {
+      return {
+        success: false,
+        message: "No current question to add tags for.",
+        retryable: false,
+      };
+    }
+
+    const question = Session.getCurrentQuestion();
+
+    if (!question.subject) {
+      return {
+        success: true,
+        message: "This question has no subject to tag — skipped.",
+        retryable: false,
+      };
+    }
+
+    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    if (!modalResult.success) {
+      return modalResult;
+    }
+
+    const root = modalResult.element;
+    const selectors = Selectors.addTags;
+
+    const fillResult = DomHelpers.fillInput(selectors.tagInput, question.subject, { root });
+    if (!fillResult.success) {
+      return fillResult;
+    }
+
+    const clickResult = DomHelpers.clickElement(selectors.addTagButton, { root });
+    if (!clickResult.success) {
+      return clickResult;
+    }
+
+    // Completion signal: wait for the tag's own pill to appear with the
+    // exact subject text — not the input clearing, not a fixed delay.
+    const pillResult = await DomHelpers.waitForElement(selectors.tagPill(question.subject), { root });
+    if (!pillResult.success) {
+      return pillResult;
+    }
+
+    return {
+      success: true,
+      message: getStateSuccessMessage("ADD_TAGS"),
+      retryable: false,
+      focusTarget: selectors.tagPill(question.subject),
+      focusRoot: root,
+    };
+  }
+
   function makeStubHandler(stateName) {
     return function () {
       if (!Session.hasCurrentQuestion()) {
@@ -553,7 +610,7 @@
     PASTE_OPTIONS: runPasteOptions,
     MARK_CORRECT: runMarkCorrect,
     GENERATE_AI: runGenerateAi,
-    ADD_TAGS: makeStubHandler("ADD_TAGS"),
+    ADD_TAGS: runAddTags,
     SAVE: makeStubHandler("SAVE"),
     NEXT_QUESTION: runNextQuestion,
     COMPLETE: runComplete,
