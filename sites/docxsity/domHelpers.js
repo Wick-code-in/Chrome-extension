@@ -350,12 +350,65 @@
     const { triggerButton, modal, textarea, confirmButton } = selectors;
     const { root, ...modalOptions } = options;
 
+    // --- TEMPORARY DIAGNOSTICS (Mac vs. Windows PASTE_QUESTION investigation
+    // only). Fully inert unless the caller opts in via options.__diagnosticTag
+    // (only sites/docxsity/stateMachine.js's runPasteQuestion does) — every
+    // other caller (PASTE_OPTIONS) is byte-for-byte unaffected. Every real
+    // statement below (clickElement, waitForElement, fillInput, ...) is
+    // completely unchanged; this only reads state around them. Remove this
+    // setup block and every diag(...) call once the platform difference is
+    // understood.
+    const diagnosticTag = options.__diagnosticTag;
+    function diag(label, extra) {
+      if (!diagnosticTag) {
+        return;
+      }
+      console.log(`[Docxsity][${diagnosticTag}][DIAG] ${label}`, extra !== undefined ? JSON.stringify(extra) : "");
+    }
+    // --- END TEMPORARY DIAGNOSTICS SETUP ---
+
+    diag("1) trigger button found before click:", !!findElement(triggerButton, root)); // TEMP DIAGNOSTIC
+
+    diag("2) invoking clickElement now"); // TEMP DIAGNOSTIC
     const clickTriggerResult = clickElement(triggerButton, options);
+    diag("2b) clickElement() result:", clickTriggerResult); // TEMP DIAGNOSTIC
+
     if (!clickTriggerResult.success) {
       return clickTriggerResult;
     }
 
+    // TEMP DIAGNOSTIC: synchronous snapshot immediately after the click
+    // returns, before any wait of any kind — answers "does any TinyMCE
+    // dialog exist yet" and "did focus move" at the earliest possible
+    // moment, plus a few short-interval follow-ups to catch a near-
+    // immediate (but not synchronous) appearance without waiting through
+    // the full 10s timeout in coarse steps.
+    const triggerButtonElement = findElement(triggerButton, root);
+    function snapshotDialogState(label) {
+      diag(label, {
+        anyDialogRoleCount: document.querySelectorAll('[role="dialog"]').length,
+        toxDialogCount: document.querySelectorAll(".tox-dialog").length,
+        toxDialogWrapCount: document.querySelectorAll(".tox-dialog-wrap").length,
+        exactSelectorFound: !!findElement(modal, document),
+        activeElementIsTriggerButton: document.activeElement === triggerButtonElement,
+        activeElementTag: document.activeElement ? document.activeElement.tagName : null,
+        activeElementClass: document.activeElement ? String(document.activeElement.className) : null,
+      });
+    }
+    snapshotDialogState("3&4) immediately after click:");
+    if (diagnosticTag) {
+      const followUpTargetsMs = [100, 300, 600, 1000, 2000]; // cumulative ms since the click
+      let elapsedMs = 0;
+      for (const targetMs of followUpTargetsMs) {
+        await new Promise((resolve) => setTimeout(resolve, targetMs - elapsedMs));
+        elapsedMs = targetMs;
+        snapshotDialogState(`3&4) +${targetMs}ms after click:`);
+      }
+    }
+    // --- END TEMPORARY DIAGNOSTICS (real logic resumes below, unchanged) ---
+
     const waitModalResult = await waitForElement(modal, modalOptions);
+    diag("5) waitForElement(modal) settled:", waitModalResult); // TEMP DIAGNOSTIC
     if (!waitModalResult.success) {
       return waitModalResult;
     }
