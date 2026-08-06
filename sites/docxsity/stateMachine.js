@@ -1,17 +1,16 @@
 (function () {
   const Session = window.ExamUploadAssistantSession;
+  const DomHelpers = window.ExamUploadAssistantDomHelpers;
+  const Selectors = window.ExamUploadAssistantSelectors;
+  const MarkingSchemes = window.ExamUploadAssistantMarkingSchemes;
 
   const POSITIVE_INTEGER_PATTERN = /^\d+$/;
 
-  // Phase 0 scaffolding only. Every step below is a stub that advances the
-  // workflow and reports success without touching the page — there is no
-  // DomHelpers/Selectors dependency yet because there is no verified DOM
-  // fact to act on (see the Docxsity V2 design doc, Phase 1). Real
-  // automation replaces makeStubHandler's callers one state at a time,
-  // mirroring the run*/STATE_HANDLERS shape sites/modality/stateMachine.js
-  // already uses — this file's job right now is only to prove the
-  // extension loads, the panel drives it, and Session/Parser work
-  // unmodified against a second site.
+  // Real automation replaces makeStubHandler's callers one state at a time
+  // as each is itself live-verified (PREPARE_FORM first; see the Docxsity
+  // V2 design doc's phase roadmap), mirroring the run*/STATE_HANDLERS shape
+  // sites/modality/stateMachine.js already uses — but never sharing code
+  // with it.
   const NEXT_STATE = {
     IDLE: "PREPARE_FORM",
     PREPARE_FORM: "PASTE_QUESTION",
@@ -32,7 +31,7 @@
       case "IDLE":
         return "Ready to begin.";
       case "PREPARE_FORM":
-        return "PREPARE_FORM completed (stub — Docxsity automation not yet implemented).";
+        return "Question prepared.";
       case "PASTE_QUESTION":
         return "PASTE_QUESTION completed (stub — Docxsity automation not yet implemented).";
       case "PASTE_OPTIONS":
@@ -64,6 +63,140 @@
     }
 
     return { success: true, message: getStateSuccessMessage("IDLE"), retryable: false };
+  }
+
+  // Modal-root-once pattern (standard for Docxsity, per the project's
+  // explicit convention): click Add Question, wait for its modal once, then
+  // scope every field lookup for this workflow to that resolved root —
+  // never search document unscoped, even though today (an empty question
+  // bank) an unscoped lookup would happen to work too.
+  async function runPrepareForm() {
+    if (!Session.hasCurrentQuestion()) {
+      return {
+        success: false,
+        message: "No current question to prepare.",
+        retryable: false,
+      };
+    }
+
+    const question = Session.getCurrentQuestion();
+
+    if (question.hasImage) {
+      return {
+        success: false,
+        message:
+          "This question contains an image. Insert it manually on the target website, then click Execute Step to continue.",
+        retryable: true,
+      };
+    }
+
+    const selectors = Selectors.prepareForm;
+
+    let questionTypeValue;
+
+    if (question.type === "MCQ") {
+      questionTypeValue = selectors.mcqOptionValue;
+    } else if (question.type === "NUMERICAL") {
+      questionTypeValue = selectors.fillBlankOptionValue;
+    } else {
+      return {
+        success: false,
+        message:
+          "This question's type could not be determined from its section markers. Fix the source markdown and reload, then Jump back to this question.",
+        retryable: true,
+      };
+    }
+
+    const examType = Session.getExamType();
+    const markingScheme = MarkingSchemes.getMarkingScheme(examType);
+
+    if (!markingScheme) {
+      return {
+        success: false,
+        message: `No marking scheme configured for exam type "${examType}". Add one to sites/docxsity/config/markingSchemes.js before continuing.`,
+        retryable: false,
+      };
+    }
+
+    const clickResult = DomHelpers.clickElement(selectors.addQuestionButton);
+    if (!clickResult.success) {
+      return clickResult;
+    }
+
+    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    if (!modalResult.success) {
+      return modalResult;
+    }
+
+    const root = modalResult.element;
+
+    const typeResult = await DomHelpers.selectDropdown(selectors.questionTypeDropdown, questionTypeValue, { root });
+    if (!typeResult.success) {
+      return typeResult;
+    }
+
+    const marksResult = DomHelpers.fillInput(selectors.marksInput, markingScheme.marks, { root });
+    if (!marksResult.success) {
+      return marksResult;
+    }
+
+    // VERIFIED: unlike Modality (which skips Penalty for its non-MCQ
+    // question type), Docxsity's Penalty field stays present and enabled
+    // regardless of Question Type — filled unconditionally for every type.
+    const penaltyResult = DomHelpers.fillInput(selectors.penaltyInput, markingScheme.penalty, { root });
+    if (!penaltyResult.success) {
+      return penaltyResult;
+    }
+
+    // --- TEMPORARY DIAGNOSTICS (PREPARE_FORM verification phase only) ---
+    // Read-only: re-resolves the fields already set above via the existing,
+    // side-effect-free DomHelpers.findElement — no new interaction, no
+    // change to success/failure logic or the returned result. Remove this
+    // block once PREPARE_FORM is verified and committed, before starting
+    // PASTE_QUESTION.
+    {
+      const typeElement = DomHelpers.findElement(selectors.questionTypeDropdown, root);
+      const actualQuestionType = typeElement
+        ? (typeElement.querySelector(".ng-value")?.textContent.trim() ?? "")
+        : "(not found)";
+
+      const marksElement = DomHelpers.findElement(selectors.marksInput, root);
+      const actualMarks = marksElement ? marksElement.value : "(not found)";
+
+      const penaltyElement = DomHelpers.findElement(selectors.penaltyInput, root);
+      const actualPenalty = penaltyElement ? penaltyElement.value : "(not found)";
+
+      const matchLabel = (expected, actual) => (String(expected) === String(actual) ? "MATCH" : "MISMATCH");
+
+      console.log(
+        [
+          "[Docxsity][PREPARE_FORM]",
+          `- Exam Type: ${examType}`,
+          `- Modal Found: ${modalResult.success ? "✓" : "✗"}`,
+          "- Question Type:",
+          `  - Expected: ${questionTypeValue}`,
+          `  - Actual: ${actualQuestionType}`,
+          `  - ${matchLabel(questionTypeValue, actualQuestionType)}`,
+          "- Marks:",
+          `  - Expected: ${markingScheme.marks}`,
+          `  - Actual: ${actualMarks}`,
+          `  - ${matchLabel(markingScheme.marks, actualMarks)}`,
+          "- Penalty:",
+          `  - Expected: ${markingScheme.penalty}`,
+          `  - Actual: ${actualPenalty}`,
+          `  - ${matchLabel(markingScheme.penalty, actualPenalty)}`,
+        ].join("\n")
+      );
+    }
+    // --- END TEMPORARY DIAGNOSTICS ---
+
+    return {
+      success: true,
+      message: getStateSuccessMessage("PREPARE_FORM"),
+      retryable: false,
+      focusTarget: selectors.questionTypeDropdown,
+      focusRoot: root,
+    };
   }
 
   function makeStubHandler(stateName) {
@@ -100,7 +233,7 @@
 
   const STATE_HANDLERS = {
     IDLE: runIdle,
-    PREPARE_FORM: makeStubHandler("PREPARE_FORM"),
+    PREPARE_FORM: runPrepareForm,
     PASTE_QUESTION: makeStubHandler("PASTE_QUESTION"),
     PASTE_OPTIONS: makeStubHandler("PASTE_OPTIONS"),
     MARK_CORRECT: makeStubHandler("MARK_CORRECT"),

@@ -27,6 +27,9 @@
       "js": [
         "lib/parser.js",
         "lib/session.js",
+        "sites/docxsity/config/markingSchemes.js",
+        "sites/docxsity/domHelpers.js",
+        "sites/docxsity/selectors.js",
         "sites/docxsity/stateMachine.js",
         "content/loader.js",
         "content/panel.js",
