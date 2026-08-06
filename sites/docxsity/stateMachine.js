@@ -5,6 +5,7 @@
   const MarkingSchemes = window.ExamUploadAssistantMarkingSchemes;
 
   const POSITIVE_INTEGER_PATTERN = /^\d+$/;
+  const OPTION_LETTERS = ["A", "B", "C", "D"];
 
   // Real automation replaces makeStubHandler's callers one state at a time
   // as each is itself live-verified (PREPARE_FORM first; see the Docxsity
@@ -35,7 +36,7 @@
       case "PASTE_QUESTION":
         return "Question pasted.";
       case "PASTE_OPTIONS":
-        return "PASTE_OPTIONS completed (stub — Docxsity automation not yet implemented).";
+        return "Options pasted.";
       case "MARK_CORRECT":
         return "MARK_CORRECT completed (stub — Docxsity automation not yet implemented).";
       case "GENERATE_AI":
@@ -214,6 +215,131 @@
     };
   }
 
+  // Responsibility 1 of 2 for PASTE_OPTIONS (kept deliberately separate from
+  // population, per explicit direction): ensure exactly `count` option
+  // cards exist. Only Option 1 exists when the Add Question modal opens —
+  // every card past that is created one at a time. For each position,
+  // check (read-only, no wait) whether that specific card already exists;
+  // if not, click "Add Option" once and wait for that specific card to
+  // appear before ever considering the next position. Never clicks more
+  // than once without first observing the DOM in between — this is exactly
+  // what addresses the earlier live observation where rapid, unobserved
+  // clicks appeared to create duplicate cards.
+  //
+  // Composed entirely from existing DomHelpers primitives (findElement,
+  // clickElement, waitForElement) — no new primitive was needed for this.
+  async function ensureOptionCount(root, count) {
+    let existingCount = 0;
+    let createdCount = 0;
+
+    for (let number = 1; number <= count; number += 1) {
+      const cardSelector = Selectors.pasteOptions.optionCard(number);
+      const alreadyPresent = DomHelpers.findElement(cardSelector, root);
+
+      if (alreadyPresent) {
+        existingCount += 1;
+        continue;
+      }
+
+      const clickResult = DomHelpers.clickElement(Selectors.pasteOptions.addOptionButton, { root });
+      if (!clickResult.success) {
+        return { success: false, message: clickResult.message, retryable: true, existingCount, createdCount };
+      }
+
+      const waitResult = await DomHelpers.waitForElement(cardSelector, { root });
+      if (!waitResult.success) {
+        return { success: false, message: waitResult.message, retryable: true, existingCount, createdCount };
+      }
+
+      createdCount += 1;
+    }
+
+    return { success: true, message: `Ensured ${count} option cards exist.`, retryable: false, existingCount, createdCount };
+  }
+
+  // Responsibility 2 of 2 for PASTE_OPTIONS: once a card is known to exist,
+  // resolve it and reuse DomHelpers.pasteMarkdown() unchanged — identical
+  // call shape to PASTE_QUESTION's, just with each option's own card as
+  // `root` (instead of the whole Add Question modal) and a plain scoped
+  // selector as the trigger (instead of a {labelText} descriptor, since
+  // Options have no <label> to anchor to). No new TinyMCE primitive is
+  // needed: the interaction is genuinely identical to Question Text's.
+  async function runPasteOptions() {
+    if (!Session.hasCurrentQuestion()) {
+      return {
+        success: false,
+        message: "No current question to paste options for.",
+        retryable: false,
+      };
+    }
+
+    const question = Session.getCurrentQuestion();
+
+    if (!question.options) {
+      return {
+        success: false,
+        message: "This question has no options to paste.",
+        retryable: false,
+      };
+    }
+
+    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    if (!modalResult.success) {
+      return modalResult;
+    }
+
+    const root = modalResult.element;
+
+    const ensureResult = await ensureOptionCount(root, OPTION_LETTERS.length);
+    if (!ensureResult.success) {
+      return ensureResult;
+    }
+
+    const modalSelectors = Selectors.markdownImportModal;
+
+    for (const letter of OPTION_LETTERS) {
+      const optionText = question.options[letter];
+
+      if (!optionText) {
+        return {
+          success: false,
+          message: `Option ${letter} has no text to paste.`,
+          retryable: false,
+        };
+      }
+
+      const number = Selectors.pasteOptions.optionNumberByLetter[letter];
+      const cardResult = await DomHelpers.waitForElement(Selectors.pasteOptions.optionCard(number), { root });
+
+      if (!cardResult.success) {
+        return cardResult;
+      }
+
+      const pasteResult = await DomHelpers.pasteMarkdown(
+        {
+          triggerButton: Selectors.pasteOptions.markdownButtonSelector,
+          modal: modalSelectors.container,
+          textarea: modalSelectors.rawMarkdownTextarea,
+          confirmButton: modalSelectors.renderAndInsertButton,
+        },
+        optionText,
+        { root: cardResult.element }
+      );
+
+      if (!pasteResult.success) {
+        return pasteResult;
+      }
+    }
+
+    return {
+      success: true,
+      message: getStateSuccessMessage("PASTE_OPTIONS"),
+      retryable: false,
+      focusTarget: Selectors.pasteOptions.optionCard(OPTION_LETTERS.length),
+      focusRoot: root,
+    };
+  }
+
   function makeStubHandler(stateName) {
     return function () {
       if (!Session.hasCurrentQuestion()) {
@@ -250,7 +376,7 @@
     IDLE: runIdle,
     PREPARE_FORM: runPrepareForm,
     PASTE_QUESTION: runPasteQuestion,
-    PASTE_OPTIONS: makeStubHandler("PASTE_OPTIONS"),
+    PASTE_OPTIONS: runPasteOptions,
     MARK_CORRECT: makeStubHandler("MARK_CORRECT"),
     GENERATE_AI: makeStubHandler("GENERATE_AI"),
     ADD_TAGS: makeStubHandler("ADD_TAGS"),

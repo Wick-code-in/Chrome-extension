@@ -87,6 +87,56 @@
       // VERIFIED: <button class="tox-button">Render & Insert</button>.
       renderAndInsertButton: { tag: "button", text: "Render & Insert" },
     },
+    // VERIFIED live (2026-08-06, PASTE_OPTIONS reconnaissance).
+    pasteOptions: {
+      // VERIFIED: the number of option cards present when PASTE_OPTIONS
+      // runs is NOT a fixed default — Docxsity's Question Type control
+      // itself resizes the underlying options array whenever it's actively
+      // selected (confirmed live 2026-08-06: selecting "Fill Blank" via a
+      // real click collapses option cards to 0; selecting "MCQ Choice" back
+      // populates exactly 4 empty cards; both directions immediate, no
+      // timing gap, never restores prior content). Since selectDropdown()
+      // is idempotent (only performs a real click when the ng-select's
+      // current value differs from the target), whether this has already
+      // fired by the time PASTE_OPTIONS runs depends on the Add Question
+      // modal's accumulated Question Type interaction history for that
+      // session — 1 card (Question Type never actively touched) and 4
+      // cards (it was) have both been observed live, and ensureOptionCount
+      // below is written to handle either starting point correctly by
+      // construction: check each position, click "Add Option" once and
+      // wait for that specific next card only when it's actually missing,
+      // never clicking ahead of what's been observed. <button class="btn
+      // ...">"+ Add Option" as rendered, but the "+" is a separate icon
+      // element with no text node — textContent trims to exactly
+      // "Add Option".
+      addOptionButton: { tag: "button", text: "Add Option" },
+      // VERIFIED (re-checked live per explicit request, not assumed): zero
+      // <label> elements exist anywhere in the options section — the Add
+      // Question modal has 9 real <label>s total (Question Type,
+      // Difficulty, Marks, Penalty, Question Text, Tags, ...), none reading
+      // "Option N". {labelText} cannot resolve these, unlike every other
+      // field on the form. Resolves to the option's own .qm-option-card
+      // root via its <span class="qm-option-label"> heading + closest() —
+      // the same {tag,text,closest} pattern Modality uses for its Sub
+      // Question cards. Chosen over a positional :nth-of-type(N) selector:
+      // both resolve to the identical element today (the options
+      // container's only children are .qm-option-card divs, confirmed
+      // live), but this one doesn't depend on that sibling-type purity
+      // holding forever, and reuses an existing selector capability rather
+      // than introducing a new one.
+      optionCard: (number) => ({ tag: "span", text: `Option ${number}`, closest: ".qm-option-card" }),
+      // VERIFIED: identical button (aria-label="Paste Raw Markdown", same
+      // classes) to Question Text's — found via a plain selector scoped to
+      // the option's own card (the resolved element from optionCard
+      // above), the second half of the same two-step root-then-field
+      // pattern, not a fresh {labelText} descriptor since there's no label
+      // to anchor to here.
+      markdownButtonSelector: 'button[aria-label="Paste Raw Markdown"]',
+      // Docxsity's own per-card lettering — mirrors Modality's identical
+      // optionNumberByLetter mapping (a fact about the site's own UI
+      // numbering, not shared with or derived from it).
+      optionNumberByLetter: { A: 1, B: 2, C: 3, D: 4 },
+    },
   };
 
   window.ExamUploadAssistantSelectors = SELECTORS;
