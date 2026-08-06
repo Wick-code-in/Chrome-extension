@@ -680,6 +680,22 @@
       return "COMPLETE";
     }
 
+    // Fill Blank has no Options/Correct-Answer mechanism at all — VERIFIED
+    // live: Question Type "Fill Blank" collapses option cards to 0, and
+    // "Select Correct Answer" plus every per-option "Mark as Correct"
+    // button simply don't exist. Skip straight from PASTE_QUESTION to
+    // GENERATE_AI, mirroring sites/modality/stateMachine.js's identical
+    // skip for its own NUMERICAL type. ADD_TAGS is deliberately NOT
+    // skipped here — it already runs unconditionally after GENERATE_AI via
+    // NEXT_STATE below, and runAddTags() itself is what decides whether
+    // there's a subject to tag (a successful no-op when there isn't).
+    if (currentState === "PASTE_QUESTION") {
+      const question = Session.getCurrentQuestion();
+      if (question && question.type === "NUMERICAL") {
+        return "GENERATE_AI";
+      }
+    }
+
     return NEXT_STATE[currentState];
   }
 
