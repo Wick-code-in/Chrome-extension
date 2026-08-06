@@ -9,13 +9,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://aistudio.webmap.network/*", "https://www.docxsity.com/*"],
+      "matches": ["https://aistudio.webmap.network/*"],
       "js": [
         "lib/parser.js",
         "lib/session.js",
-        "lib/domHelpers.js",
-        "lib/selectors.js",
-        "lib/stateMachine.js",
+        "sites/modality/domHelpers.js",
+        "sites/modality/selectors.js",
+        "sites/modality/stateMachine.js",
         "content/loader.js",
         "content/panel.js",
         "content/content.js"
