@@ -203,44 +203,6 @@
     const root = modalResult.element;
     const modalSelectors = Selectors.markdownImportModal;
 
-    // --- TEMPORARY DIAGNOSTICS (Windows PASTE_QUESTION investigation only).
-    // Self-contained here, independent of the __diagnosticTag instrumentation
-    // inside DomHelpers.pasteMarkdown() below (see there for the click/wait-
-    // boundary checks and the +100/300/600/1000/2000ms follow-ups) — this
-    // block covers the read-only pre-click facts that don't depend on that
-    // flag propagating correctly at all: button found/visible/disabled,
-    // whether it's connected to the DOM, and document.activeElement before
-    // anything happens. Every line here is read-only; the real logic below
-    // is unchanged. Remove this block, the __diagnosticTag line below it,
-    // and the matching instrumentation in domHelpers.js once the platform
-    // difference is understood.
-    {
-      const selectors = Selectors.pasteQuestion;
-      const preClickButton = DomHelpers.findElement(selectors.markdownButton, root);
-      console.log(
-        "[Docxsity][PASTE_QUESTION][DIAG] pre-click (in runPasteQuestion):",
-        JSON.stringify({
-          buttonFound: !!preClickButton,
-          buttonVisible: preClickButton ? DomHelpers.isVisible(preClickButton) : null,
-          buttonDisabled: preClickButton
-            ? preClickButton.disabled === true || preClickButton.getAttribute("aria-disabled") === "true"
-            : null,
-          buttonConnectedToDom: preClickButton ? preClickButton.isConnected : null,
-          activeElementTag: document.activeElement ? document.activeElement.tagName : null,
-          activeElementClass: document.activeElement ? String(document.activeElement.className) : null,
-        })
-      );
-    }
-    // --- END TEMPORARY DIAGNOSTICS ---
-
-    // TEMP DIAGNOSTIC (Windows PASTE_QUESTION investigation only):
-    // __diagnosticTag opts this one call site into the instrumentation
-    // inside DomHelpers.pasteMarkdown() (see there) — every other caller
-    // (PASTE_OPTIONS) passes no such flag and is completely unaffected, and
-    // the real click/wait/fill/click/wait sequence itself is byte-for-byte
-    // unchanged either way. Remove this one line alongside the
-    // instrumentation in domHelpers.js once the platform difference is
-    // understood.
     const pasteResult = await DomHelpers.pasteMarkdown(
       {
         triggerButton: Selectors.pasteQuestion.markdownButton,
@@ -249,14 +211,7 @@
         confirmButton: modalSelectors.renderAndInsertButton,
       },
       question.questionMarkdown,
-      { root, __diagnosticTag: "PASTE_QUESTION" }
-    );
-
-    // TEMP DIAGNOSTIC — immediately before this function's own return,
-    // unconditionally (runs whether pasteResult succeeded or failed).
-    console.log(
-      "[Docxsity][PASTE_QUESTION][DIAG] pasteMarkdown() final outcome:",
-      JSON.stringify({ success: pasteResult.success, message: pasteResult.message })
+      { root }
     );
 
     if (!pasteResult.success) {
