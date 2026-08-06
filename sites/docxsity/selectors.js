@@ -73,13 +73,24 @@
     // every lookup below — never keep searching inside the Add Question
     // modal for these three.
     markdownImportModal: {
-      // VERIFIED: the dialog carries its own aria-label directly
-      // (<div role="dialog" aria-label="Paste Markdown Data"
-      // class="tox-dialog tox-dialog--width-lg">) — a plain attribute
-      // selector, simpler and more robust than matching by title text +
-      // closest() (which sites/modality/selectors.js has to do, since its
-      // dialog apparently lacks this direct aria-label).
-      container: '[role="dialog"][aria-label="Paste Markdown Data"]',
+      // VERIFIED live on both platforms (2026-08-06, Windows investigation):
+      // the dialog's accessible-name wiring is NOT stable across
+      // environments — on macOS it carries aria-label="Paste Markdown Data"
+      // directly; on Windows the same dialog instead uses
+      // aria-labelledby="dialog-label_..." pointing at its own <h1>, with no
+      // aria-label attribute at all. A selector requiring [aria-label=...]
+      // therefore silently never matches on Windows, even though the click
+      // and the dialog itself both work correctly there — confirmed via
+      // live diagnostics (button found/clicked, .tox-dialog present, focus
+      // in .tox-textarea, only the exact selector match failing). What IS
+      // stable on both: the visible title text itself, always rendered as
+      // <h1 class="tox-dialog__title">Paste Markdown Data</h1> inside
+      // .tox-dialog regardless of the aria wiring — re-verified live on
+      // macOS specifically to confirm this, not assumed from the Windows
+      // report alone. Same {tag, text, closest} pattern
+      // sites/modality/selectors.js already uses for its own analogous
+      // dialog.
+      container: { tag: "h1", text: "Paste Markdown Data", closest: ".tox-dialog" },
       // VERIFIED: has a real <label>Raw Markdown</label> directly above the
       // textarea — the {labelText} pattern resolves it same as every other
       // labeled field.
