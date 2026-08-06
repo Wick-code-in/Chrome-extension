@@ -21,6 +21,18 @@
         "content/content.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.docxsity.com/*"],
+      "js": [
+        "lib/parser.js",
+        "lib/session.js",
+        "sites/docxsity/stateMachine.js",
+        "content/loader.js",
+        "content/panel.js",
+        "content/content.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
