@@ -396,6 +396,35 @@
       });
     }
     snapshotDialogState("3&4) immediately after click:");
+
+    // TEMP DIAGNOSTIC: full dialog structure dump, once, immediately after
+    // the click — targets exactly why [role="dialog"][aria-label="Paste
+    // Markdown Data"] matches on macOS but not on Windows despite a
+    // .tox-dialog existing there too. Raw console.log (not JSON.stringify,
+    // unlike diag() above) so outerHTML prints as readable markup rather
+    // than an escaped string.
+    if (diagnosticTag) {
+      const firstToxDialog = document.querySelector(".tox-dialog");
+      const firstRoleDialog = document.querySelector('[role="dialog"]');
+      console.log(`[Docxsity][${diagnosticTag}][DIAG] dialog-inspect) .tox-dialog outerHTML:`, firstToxDialog ? firstToxDialog.outerHTML : null);
+      console.log(
+        `[Docxsity][${diagnosticTag}][DIAG] dialog-inspect) [role="dialog"] outerHTML:`,
+        firstRoleDialog ? firstRoleDialog.outerHTML : null
+      );
+
+      const dialogLikeElements = Array.from(new Set([...document.querySelectorAll(".tox-dialog"), ...document.querySelectorAll('[role="dialog"]')]));
+      console.log(
+        `[Docxsity][${diagnosticTag}][DIAG] dialog-inspect) every dialog-like element's attributes:`,
+        dialogLikeElements.map((element) => ({
+          tagName: element.tagName,
+          role: element.getAttribute("role"),
+          ariaLabel: element.getAttribute("aria-label"),
+          ariaLabelledby: element.getAttribute("aria-labelledby"),
+          className: element.className,
+        }))
+      );
+    }
+
     if (diagnosticTag) {
       const followUpTargetsMs = [100, 300, 600, 1000, 2000]; // cumulative ms since the click
       let elapsedMs = 0;
