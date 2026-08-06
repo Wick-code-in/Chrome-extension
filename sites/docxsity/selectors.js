@@ -157,6 +157,36 @@
       // only observable state.
       activeButtonClass: "qm-correct-btn--active",
     },
+    // VERIFIED live (2026-08-06, GENERATE_AI reconnaissance) — including one
+    // real end-to-end generation, not just structural inspection.
+    generateAi: {
+      // VERIFIED: <button class="qm-btn-generate-ai">Generate with AI</button>,
+      // always present and enabled regardless of field completion or
+      // Question Type (confirmed for MCQ Choice, Fill Blank, the standalone
+      // form, and inside a Sub Question card). Its own visible text swaps
+      // to "Generating..." while a `disabled` attribute is present, so this
+      // deliberately targets the stable class rather than {tag,text} — a
+      // text-based lookup would stop matching the instant generation starts.
+      generateButtonSelector: "button.qm-btn-generate-ai",
+      // VERIFIED: the AI model picker (<app-multi-models>, a custom
+      // dropdown — not <select> or <ng-select>) exists on the standalone
+      // form too, always defaults to "Default" pre-selected, no manual
+      // interaction required. Deliberately not automated — left untouched
+      // per explicit direction.
+      //
+      // VERIFIED: before any content exists, Explanation is just a
+      // <label>Explanation <span class="qm-optional">(Optional)</span></label>
+      // + a hint <p> ("Add an explanation manually or generate one using
+      // AI.") — no editor at all. After a real generation, the same
+      // container instead renders a full TinyMCE <app-rich-editor> with the
+      // generated content (directly observed on a completed generation:
+      // Topic / Correct Answer / Short Explanation / Why the Other Options
+      // Are Incorrect). Resolves via the same {labelText, find} pattern
+      // used elsewhere — label's exact trimmed text is "Explanation
+      // (Optional)" (the "(Optional)" is a nested span, but textContent
+      // still trims to one string).
+      explanationEditor: { labelText: "Explanation (Optional)", find: "app-rich-editor" },
+    },
   };
 
   window.ExamUploadAssistantSelectors = SELECTORS;

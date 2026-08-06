@@ -6,6 +6,10 @@
 
   const POSITIVE_INTEGER_PATTERN = /^\d+$/;
   const OPTION_LETTERS = ["A", "B", "C", "D"];
+  // Longer than the default 10s wait timeout — a real generation was
+  // observed completing in ~1.5s, but that's one sample against a live AI
+  // service, not a guaranteed upper bound.
+  const GENERATE_AI_TIMEOUT_MS = 30000;
 
   // Own copy of the same UPSC/no-answer-key distinction
   // sites/modality/stateMachine.js makes — not shared code, just the same
@@ -48,7 +52,7 @@
       case "MARK_CORRECT":
         return "Correct answer selected.";
       case "GENERATE_AI":
-        return "GENERATE_AI completed (stub — Docxsity automation not yet implemented).";
+        return "AI content generated.";
       case "ADD_TAGS":
         return "ADD_TAGS completed (stub — Docxsity automation not yet implemented).";
       case "SAVE":
@@ -434,6 +438,82 @@
     };
   }
 
+  // Deliberately does not touch the AI model picker (<app-multi-models>) —
+  // it always defaults to "Default" pre-selected and needs no interaction,
+  // confirmed live. Same workflow for MCQ Choice and Fill Blank; not
+  // special-cased since the reconnaissance found no behavioral difference
+  // between them for this state (both have the button present and enabled).
+  async function runGenerateAi() {
+    if (!Session.hasCurrentQuestion()) {
+      return {
+        success: false,
+        message: "No current question to generate AI content for.",
+        retryable: false,
+      };
+    }
+
+    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    if (!modalResult.success) {
+      return modalResult;
+    }
+
+    const root = modalResult.element;
+    const buttonSelector = Selectors.generateAi.generateButtonSelector;
+
+    const clickResult = DomHelpers.clickElement(buttonSelector, { root });
+    if (!clickResult.success) {
+      return clickResult;
+    }
+
+    // Two-phase wait, not a single "not disabled" check: immediately after
+    // the click the button can still momentarily read as enabled (observed
+    // live — still enabled at 100ms, only disabled by 500ms), so waiting
+    // for the disabled state first is what makes the second wait an actual
+    // completion signal rather than a race that could resolve instantly.
+    const disabledResult = await DomHelpers.waitForElement(`${buttonSelector}[disabled]`, { root });
+    if (!disabledResult.success) {
+      return disabledResult;
+    }
+
+    const enabledResult = await DomHelpers.waitForElement(`${buttonSelector}:not([disabled])`, {
+      root,
+      timeoutMs: GENERATE_AI_TIMEOUT_MS,
+    });
+    if (!enabledResult.success) {
+      return enabledResult;
+    }
+
+    // Post-condition verification (not the wait condition): confirm AI
+    // generation actually produced content, the same way every earlier
+    // state verifies its own effect before reporting success.
+    const explanationElement = DomHelpers.findElement(Selectors.generateAi.explanationEditor, root);
+    const explanationIframe = explanationElement ? explanationElement.querySelector("iframe") : null;
+
+    let explanationText = "";
+    try {
+      explanationText = explanationIframe ? explanationIframe.contentDocument.body.textContent.trim() : "";
+    } catch (error) {
+      explanationText = "";
+    }
+
+    if (!explanationText) {
+      return {
+        success: false,
+        message:
+          "AI generation finished, but the Explanation field is still empty. Check the target website manually, then use Pass Step to continue if this is expected.",
+        retryable: true,
+      };
+    }
+
+    return {
+      success: true,
+      message: getStateSuccessMessage("GENERATE_AI"),
+      retryable: false,
+      focusTarget: Selectors.generateAi.explanationEditor,
+      focusRoot: root,
+    };
+  }
+
   function makeStubHandler(stateName) {
     return function () {
       if (!Session.hasCurrentQuestion()) {
@@ -472,7 +552,7 @@
     PASTE_QUESTION: runPasteQuestion,
     PASTE_OPTIONS: runPasteOptions,
     MARK_CORRECT: runMarkCorrect,
-    GENERATE_AI: makeStubHandler("GENERATE_AI"),
+    GENERATE_AI: runGenerateAi,
     ADD_TAGS: makeStubHandler("ADD_TAGS"),
     SAVE: makeStubHandler("SAVE"),
     NEXT_QUESTION: runNextQuestion,
