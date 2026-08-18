@@ -20,10 +20,22 @@
   const MARKS_PENALTY_BY_UPSC_PAPER = {
     UPSC_PAPER_I: { marks: "2", penalty: "0.66" },
     UPSC_PAPER_II: { marks: "2.5", penalty: "0.83" },
+    NDA_MATHEMATICS: { marks: "2.5", penalty: "0.83" },
   };
 
+  // NDA_MATHEMATICS deliberately included here despite the name: this
+  // predicate's real meaning is "does this exam's paper shape use UPSC-style
+  // workflow (no subject tags, may ship with no answer key, may use Question
+  // Groups)" — NDA Mathematics shares that shape structurally (verified
+  // against both NDA sample files: no answer key, common-instruction blocks
+  // identical in kind to UPSC's passages), so it's added as a third
+  // disjoint case rather than given a parallel predicate. This is provably
+  // behavior-preserving for every existing input: UPSC_PAPER_I,
+  // UPSC_PAPER_II, JEE, and anything else all return exactly what they did
+  // before, since an OR'd-in disjoint case cannot change the result for
+  // inputs that were never that case.
   function isUpscExamType(examType) {
-    return examType === "UPSC_PAPER_I" || examType === "UPSC_PAPER_II";
+    return examType === "UPSC_PAPER_I" || examType === "UPSC_PAPER_II" || examType === "NDA_MATHEMATICS";
   }
 
   // --- Question Group support (additive — only ever reached for a

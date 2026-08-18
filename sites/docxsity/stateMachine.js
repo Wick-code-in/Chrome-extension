@@ -19,6 +19,110 @@
     return examType === "UPSC_PAPER_I" || examType === "UPSC_PAPER_II";
   }
 
+  // --- Question Group foundation (Phase 3A — additive only, does not
+  // change standalone behavior. Only PREPARE_FORM uses this today; every
+  // other state still resolves Selectors.addQuestionModal unconditionally
+  // until a later phase wires resolveCurrentRoot() into them too.) ---
+
+  // The site's own per-card lettering is assigned sequentially as each Sub
+  // Question card is added, in the same document order the parser already
+  // sorted `group.questionNumbers` into — so a question's position in that
+  // array is exactly which "Add Sub Question" click (and therefore which
+  // lettered card) it corresponds to. Independently written against
+  // Docxsity's own selectors (sites/modality/stateMachine.js has an
+  // analogous function, not shared or copied from).
+  function computeSubQuestionLetter(question) {
+    const position = question.group.questionNumbers.indexOf(question.questionNumber);
+    return Selectors.questionGroup.subQuestionLetterByPosition(position);
+  }
+
+  // Looks up an already-existing root only — never creates anything, per
+  // the live-verified fact that the automation's forward-only fill order
+  // never needs to re-open a collapsed earlier card. For a standalone
+  // question this is exactly today's existing lookup (wait for the Add
+  // Question modal); for a grouped question it waits for that question's
+  // own lettered Sub Question card. Not yet called by anything other than
+  // (indirectly, for the standalone case) runPrepareForm() this phase —
+  // wiring it into PASTE_QUESTION/PASTE_OPTIONS/MARK_CORRECT/GENERATE_AI/
+  // ADD_TAGS is later-phase scope.
+  async function resolveCurrentRoot(question) {
+    if (!question.group) {
+      return DomHelpers.waitForElement(Selectors.addQuestionModal);
+    }
+
+    const letter = computeSubQuestionLetter(question);
+    return DomHelpers.waitForElement(Selectors.questionGroup.subQuestionCard(letter));
+  }
+
+  // Gets the form into a state where PREPARE_FORM's existing Question
+  // Type/Marks/Penalty work can proceed, and returns the root those should
+  // be scoped to. For a standalone question: today's exact behavior,
+  // unchanged (click Add Question, wait for its modal). For a Question
+  // Group member: click "Add Question Group" and paste the shared
+  // instruction ONLY for the first question in the group (every later
+  // member reuses the group that's already open — re-resolved fresh here,
+  // never carried as a threaded reference, same convention every other
+  // state in this file already follows), then always click "Add Sub
+  // Question" and wait for that specific lettered card to appear.
+  async function ensureQuestionFormReady(question) {
+    const selectors = Selectors.prepareForm;
+
+    if (!question.group) {
+      const clickResult = DomHelpers.clickElement(selectors.addQuestionButton);
+      if (!clickResult.success) {
+        return clickResult;
+      }
+      return DomHelpers.waitForElement(Selectors.addQuestionModal);
+    }
+
+    const groupSelectors = Selectors.questionGroup;
+    let groupModalResult;
+
+    if (question.group.isFirstInGroup) {
+      const clickGroupResult = DomHelpers.clickElement(groupSelectors.addQuestionGroupButton);
+      if (!clickGroupResult.success) {
+        return clickGroupResult;
+      }
+
+      groupModalResult = await DomHelpers.waitForElement(groupSelectors.addQuestionGroupModal);
+      if (!groupModalResult.success) {
+        return groupModalResult;
+      }
+
+      const modalSelectors = Selectors.markdownImportModal;
+      const pasteInstructionResult = await DomHelpers.pasteMarkdown(
+        {
+          triggerButton: groupSelectors.instructionMarkdownButton,
+          modal: modalSelectors.container,
+          textarea: modalSelectors.rawMarkdownTextarea,
+          confirmButton: modalSelectors.renderAndInsertButton,
+        },
+        question.group.instructionMarkdown,
+        { root: groupModalResult.element }
+      );
+      if (!pasteInstructionResult.success) {
+        return pasteInstructionResult;
+      }
+    } else {
+      // Group already open from an earlier question in this same group —
+      // re-resolve the still-open modal fresh rather than assuming any
+      // reference from an earlier call is still valid; do not click "Add
+      // Question Group" again and do not re-paste the instruction.
+      groupModalResult = await DomHelpers.waitForElement(groupSelectors.addQuestionGroupModal);
+      if (!groupModalResult.success) {
+        return groupModalResult;
+      }
+    }
+
+    const clickSubResult = DomHelpers.clickElement(groupSelectors.addSubQuestionButton, { root: groupModalResult.element });
+    if (!clickSubResult.success) {
+      return clickSubResult;
+    }
+
+    const letter = computeSubQuestionLetter(question);
+    return DomHelpers.waitForElement(groupSelectors.subQuestionCard(letter));
+  }
+
   // Real automation replaces makeStubHandler's callers one state at a time
   // as each is itself live-verified (PREPARE_FORM first; see the Docxsity
   // V2 design doc's phase roadmap), mirroring the run*/STATE_HANDLERS shape
@@ -131,17 +235,12 @@
       };
     }
 
-    const clickResult = DomHelpers.clickElement(selectors.addQuestionButton);
-    if (!clickResult.success) {
-      return clickResult;
+    const formReadyResult = await ensureQuestionFormReady(question);
+    if (!formReadyResult.success) {
+      return formReadyResult;
     }
 
-    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
-    if (!modalResult.success) {
-      return modalResult;
-    }
-
-    const root = modalResult.element;
+    const root = formReadyResult.element;
 
     const typeResult = await DomHelpers.selectDropdown(selectors.questionTypeDropdown, questionTypeValue, { root });
     if (!typeResult.success) {
@@ -181,7 +280,16 @@
 
     const question = Session.getCurrentQuestion();
 
-    if (!question.questionMarkdown) {
+    // A Question Group member must not re-paste the shared instruction into
+    // its own Question Text field — it already went into the group modal's
+    // own Instruction / Title field (see ensureQuestionFormReady, called
+    // from PREPARE_FORM). questionMarkdown itself is left completely
+    // untouched by the parser (still the instruction-duplicated legacy
+    // value) — for an ungrouped question the two fields are byte-identical,
+    // so this reads the same value it always did.
+    const questionMarkdown = question.group ? question.questionOnlyMarkdown : question.questionMarkdown;
+
+    if (!questionMarkdown) {
       return {
         success: false,
         message: "This question has no question text to paste.",
@@ -189,18 +297,18 @@
       };
     }
 
-    // The Add Question modal PREPARE_FORM opened is still on the page —
-    // state handlers don't carry DOM references to each other (mirrors
-    // sites/modality/stateMachine.js's own resolveCurrentRoot, which
-    // re-resolves its root fresh every state rather than threading one
-    // through Session), so re-resolve it the same way PREPARE_FORM did.
-    // Since the modal is already open, this settles near-instantly.
-    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
-    if (!modalResult.success) {
-      return modalResult;
+    // Re-resolve the current root fresh — state handlers don't carry DOM
+    // references to each other. For a standalone question this settles
+    // near-instantly on the already-open Add Question modal, same as
+    // before; for a Question Group member this resolves that question's
+    // own Sub Question card, created by PREPARE_FORM's
+    // ensureQuestionFormReady().
+    const rootResult = await resolveCurrentRoot(question);
+    if (!rootResult.success) {
+      return rootResult;
     }
 
-    const root = modalResult.element;
+    const root = rootResult.element;
     const modalSelectors = Selectors.markdownImportModal;
 
     const pasteResult = await DomHelpers.pasteMarkdown(
@@ -210,7 +318,7 @@
         textarea: modalSelectors.rawMarkdownTextarea,
         confirmButton: modalSelectors.renderAndInsertButton,
       },
-      question.questionMarkdown,
+      questionMarkdown,
       { root }
     );
 
@@ -295,12 +403,12 @@
       };
     }
 
-    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
-    if (!modalResult.success) {
-      return modalResult;
+    const rootResult = await resolveCurrentRoot(question);
+    if (!rootResult.success) {
+      return rootResult;
     }
 
-    const root = modalResult.element;
+    const root = rootResult.element;
 
     const ensureResult = await ensureOptionCount(root, OPTION_LETTERS.length);
     if (!ensureResult.success) {
@@ -403,12 +511,12 @@
       };
     }
 
-    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
-    if (!modalResult.success) {
-      return modalResult;
+    const rootResult = await resolveCurrentRoot(question);
+    if (!rootResult.success) {
+      return rootResult;
     }
 
-    const root = modalResult.element;
+    const root = rootResult.element;
 
     const cardResult = await DomHelpers.waitForElement(Selectors.pasteOptions.optionCard(number), { root });
     if (!cardResult.success) {
@@ -452,12 +560,14 @@
       };
     }
 
-    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
-    if (!modalResult.success) {
-      return modalResult;
+    const question = Session.getCurrentQuestion();
+
+    const rootResult = await resolveCurrentRoot(question);
+    if (!rootResult.success) {
+      return rootResult;
     }
 
-    const root = modalResult.element;
+    const root = rootResult.element;
     const buttonSelector = Selectors.generateAi.generateButtonSelector;
 
     const clickResult = DomHelpers.clickElement(buttonSelector, { root });
@@ -537,12 +647,12 @@
       };
     }
 
-    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
-    if (!modalResult.success) {
-      return modalResult;
+    const rootResult = await resolveCurrentRoot(question);
+    if (!rootResult.success) {
+      return rootResult;
     }
 
-    const root = modalResult.element;
+    const root = rootResult.element;
     const selectors = Selectors.addTags;
 
     const fillResult = DomHelpers.fillInput(selectors.tagInput, question.subject, { root });
@@ -571,7 +681,20 @@
     };
   }
 
-  // Standalone Add Question only — no Question Group save behavior here.
+  // A Question Group is saved once as a whole — SAVE is only ever reached
+  // for the group's last member (see determineNextState below), and its
+  // "Save Question" button lives in the Group modal, not any individual
+  // Sub Question card. resolveCurrentRoot(question) is deliberately NOT
+  // used here: for a grouped question it resolves that question's own
+  // Sub Question card, which is the wrong root for the group-wide Save
+  // button. The "Save Question" button's visible text is identical inside
+  // both the standalone Add Question modal and the Add Question Group
+  // modal (see Selectors.save.saveButton's own comment) — the current
+  // question's group metadata is what decides which of the two modals is
+  // actually open right now, the same signal PREPARE_FORM used to create
+  // it in the first place. (Modality's own runSave() clicks its Save
+  // button unscoped, since Modality has never hit this same-text-in-two-
+  // modals ambiguity — this scoping is a genuinely Docxsity-specific need.)
   async function runSave() {
     if (!Session.hasCurrentQuestion()) {
       return {
@@ -581,7 +704,10 @@
       };
     }
 
-    const modalResult = await DomHelpers.waitForElement(Selectors.addQuestionModal);
+    const question = Session.getCurrentQuestion();
+    const saveModalSelector = question.group ? Selectors.questionGroup.addQuestionGroupModal : Selectors.addQuestionModal;
+
+    const modalResult = await DomHelpers.waitForElement(saveModalSelector);
     if (!modalResult.success) {
       return modalResult;
     }
@@ -594,10 +720,13 @@
       return clickResult;
     }
 
-    // Completion signal: the Add Question modal disappearing — not a fixed
-    // delay, not network activity, not a toast (none was confirmed to
-    // exist reliably in reconnaissance).
-    const disappearResult = await DomHelpers.waitForDisappear(Selectors.addQuestionModal);
+    // Completion signal: the modal disappearing — not a fixed delay, not
+    // network activity, not a toast (none was confirmed to exist reliably
+    // in reconnaissance), and deliberately not the question-list view
+    // (live-confirmed in Phase 3B testing to lag behind an actual
+    // successful save). Same selector the root above was resolved from,
+    // whichever modal that was.
+    const disappearResult = await DomHelpers.waitForDisappear(saveModalSelector);
 
     if (!disappearResult.success) {
       // The modal is still open, so `root` is still a live, attached
@@ -696,6 +825,27 @@
       }
     }
 
+    // A Question Group is saved once as a whole, not per sub-question —
+    // only its last member reaches ADD_TAGS/SAVE (which clicks the
+    // group's own Save button, see runSave()); every earlier member skips
+    // straight to NEXT_QUESTION, which simply advances Session to the
+    // next flat question exactly as it already does today. No new state,
+    // no Session change: the next question's own PREPARE_FORM (via
+    // ensureQuestionFormReady) is what knows to add another Sub Question
+    // card to the group that's still open, rather than starting a new
+    // one. Driven purely by question.group metadata — deliberately NOT
+    // gated by exam type the way sites/modality/stateMachine.js's
+    // equivalent check is: Modality bundles this with its own
+    // ADD_TAGS-skip decision (UPSC has no subjects to tag), but Docxsity's
+    // runAddTags() already self-gates on question.subject independent of
+    // exam type, so no exam-type check is needed here.
+    if (currentState === "GENERATE_AI") {
+      const question = Session.getCurrentQuestion();
+      if (question && question.group && !question.group.isLastInGroup) {
+        return "NEXT_QUESTION";
+      }
+    }
+
     return NEXT_STATE[currentState];
   }
 
@@ -770,6 +920,46 @@
 
     if (questionNumber > total) {
       return jumpFailure(`Question ${questionNumber} does not exist in the loaded file (1-${total}).`);
+    }
+
+    const targetQuestion = Session.getQuestions()[questionNumber - 1];
+
+    // A Question Group can only be created on the website sequentially,
+    // starting from its first sub-question — there is no valid entry point
+    // into the middle of one. This isn't a convenience redirect, it
+    // reflects that constraint: jumping to any non-first member always
+    // lands on the group's first question instead, since that's the only
+    // question number where a jump can actually be honored. Mirrors
+    // sites/modality/stateMachine.js's identical redirect (same established
+    // semantic, independently implemented here — not shared code).
+    //
+    // KNOWN LIMITATION, inherited from that same semantic, not something
+    // this Jump implementation attempts to work around: if the group being
+    // jumped into is the one CURRENTLY open and partially filled (e.g. the
+    // operator jumped away from Sub Question b mid-group and jumps back),
+    // PREPARE_FORM will see isFirstInGroup:true again and click "Add
+    // Question Group" a second time — live-verified this opens a second,
+    // empty Group modal stacked on top of the still-open, unsaved one,
+    // rather than reusing it (same live-verified behavior for the
+    // standalone "Add Question" button while any modal is already open).
+    // No modal-detection/cleanup is added here for this — the operator
+    // remains responsible for closing an abandoned modal, consistent with
+    // how every other retryable failure in this project is handled.
+    if (targetQuestion && targetQuestion.group && !targetQuestion.group.isFirstInGroup) {
+      const firstQuestionNumber = targetQuestion.group.questionNumbers[0];
+
+      Session.setCurrentQuestionIndex(firstQuestionNumber - 1);
+      Session.setCurrentState("PREPARE_FORM");
+
+      const result = {
+        success: true,
+        message: `Question ${questionNumber} belongs to a Question Group beginning at Question ${firstQuestionNumber}. Redirecting to Question ${firstQuestionNumber}.`,
+        retryable: false,
+      };
+
+      logTransition("JUMP", result);
+
+      return result;
     }
 
     Session.setCurrentQuestionIndex(questionNumber - 1);

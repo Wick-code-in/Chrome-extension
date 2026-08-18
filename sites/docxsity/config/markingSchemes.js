@@ -19,6 +19,7 @@
     JEE: { marks: "4", penalty: "1" },
     UPSC_PAPER_I: { marks: "2", penalty: "0.66" },
     UPSC_PAPER_II: { marks: "2.5", penalty: "0.83" },
+    NDA_MATHEMATICS: { marks: "2.5", penalty: "0.83" },
   };
 
   // Fails closed: an exam type with no entry here returns null rather than

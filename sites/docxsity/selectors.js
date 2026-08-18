@@ -243,6 +243,64 @@
       // wait condition itself.
       validationErrorSelector: ".qm-error",
     },
+    // VERIFIED live (2026-08-18, Question Group reconnaissance — static DOM
+    // dump plus a disposable test question bank, created and deleted
+    // afterward). Own selectors, independently verified against Docxsity's
+    // real DOM — not copied from sites/modality/selectors.js, even where
+    // the shapes end up looking similar. Only the fields genuinely new to
+    // the group flow are listed here: Question Text, Options, Marks,
+    // Penalty, and the per-option Mark-as-Correct button were all
+    // confirmed byte-identical in class/label to the standalone form's own
+    // selectors above (prepareForm.marksInput/penaltyInput,
+    // pasteQuestion.markdownButton, pasteOptions.*, markCorrect.*), so
+    // those are reused unchanged, scoped to whichever root a caller
+    // resolves — nothing new needed for them.
+    questionGroup: {
+      // VERIFIED: <button class="btn aq-btn-group ... wm-btn
+      // wm-btn-secondary-light wm-sm-btn">, visible text "Add Question
+      // Group" — same class in both the empty-bank CTA and the toolbar
+      // variant shown once the bank already has questions.
+      addQuestionGroupButton: { tag: "button", text: "Add Question Group" },
+      // VERIFIED: clicking it opens its own <ngb-modal-window> — a
+      // separate modal instance from the standalone Add Question modal,
+      // not a mode within it. Same tag/wrapper shape as addQuestionModal
+      // above (<h2 class="qm-header-title mb-0">), only the text differs.
+      // Confirmed live to remain the same modal instance for the entire
+      // group (adding multiple Sub Questions never re-opens or replaces
+      // it) — every state working within an open group re-resolves this
+      // fresh rather than reusing a threaded reference, same as every
+      // other modal-root lookup in this file.
+      addQuestionGroupModal: { tag: "h2", text: "Add Question Group", closest: "ngb-modal-window" },
+      // VERIFIED: identical TinyMCE / "Paste Raw Markdown" shape to
+      // Question Text and Instruction/Title fields elsewhere — reuses the
+      // exact {labelText, find} pattern already proven for
+      // pasteQuestion.markdownButton, and the same shared
+      // markdownImportModal, scoped to the group modal root.
+      instructionMarkdownButton: { labelText: "Instruction / Title *", find: 'button[aria-label="Paste Raw Markdown"]' },
+      // VERIFIED: <button class="btn qm-btn-primary ...">Add Sub
+      // Question</button>, inside a <div class="qm-sub-section"> wrapper.
+      // A single page-level action within the group modal (not repeated
+      // per card), scoped to the group modal root by the caller.
+      addSubQuestionButton: { tag: "button", text: "Add Sub Question" },
+      // VERIFIED: each sub-question card's root is <div class="qm-sq-card">
+      // — NOT a heading element (Docxsity has no <h4> here, unlike
+      // Modality's Sub Question cards). Its own identifying text lives in
+      // a sibling <span class="qm-sq-label">Sub Question a</span> inside
+      // the card's header. closest() walks from that span up to the
+      // smallest ancestor carrying "qm-sq-card", one level, confirmed live
+      // against a freshly-added card. Live-verified: a newly-created card
+      // is automatically expanded, and creating the next one collapses
+      // the previous — collapsed cards' internal fields are not
+      // queryable, but this is not compensated for here (see
+      // resolveCurrentRoot/ensureQuestionFormReady in stateMachine.js for
+      // why the current forward-only automation flow never needs to).
+      subQuestionCard: (letter) => ({ tag: "span", text: `Sub Question ${letter}`, closest: ".qm-sq-card" }),
+      // Docxsity's own per-card lettering — mirrors the concept in
+      // sites/modality/selectors.js (0-indexed from "a"), independently
+      // verified here rather than assumed: live-confirmed the first card
+      // added is always "Sub Question a", the next "Sub Question b", etc.
+      subQuestionLetterByPosition: (position) => String.fromCharCode(97 + position),
+    },
   };
 
   window.ExamUploadAssistantSelectors = SELECTORS;
