@@ -62,3 +62,35 @@ A one-line, structural-selector change — no change to `domHelpers.js`, timing,
 **Finding, by literal code trace:** `executeStep()` is async and can be mid-flight for milliseconds to tens of seconds (a `GENERATE_AI` step in particular). `Session`'s current state is not written until the in-flight handler resolves. Nothing in the original `content/panel.js` prevented a second Execute Step click from reading the same still-current state and re-dispatching to the same handler, or Pass Step/Jump from mutating `Session` concurrently with whatever the in-flight handler was still doing against the live page. Also confirmed by grep: the `retryable` field is set on every result throughout both state machines but never actually read by any caller.
 
 **Resolution:** a single panel-wide busy guard was added to the shared `content/panel.js`, not to either site's state machine — see [architecture.md](architecture.md) for the guard's design and [decisions.md](decisions.md) for why it belongs in shared code. This was a real, previously-unnoticed bug affecting both Modality and Docxsity equally; it surfaced specifically because the trace was done against the literal code rather than reasoned about conceptually.
+
+---
+
+## Docxsity Question Group cards: the one button on a collapsed card removes it, it does not expand it
+
+**Symptom/context:** while live-testing the Question Group runtime (Phase 4B, against real NDA data), a collapsed `.qm-sq-card` (an earlier group member, automatically collapsed once a later member's card was created — see [docxsity.md](docxsity.md)'s accordion note) was found to render down to essentially one icon button. Clicking that button, expecting it to re-expand the card for inspection, instead **deleted that sub-question from the group** — its `title` attribute reads `"Remove Sub Question"` (class `qm-icon-btn--danger`), confirmed by inspecting the button's own markup immediately after the click.
+
+**What this means practically:** on a collapsed group card, there is currently no confirmed way to re-expand it and inspect/re-edit its fields directly — the only interactive control found on a collapsed card is destructive. This matters for anyone doing further live/manual investigation of this UI: do not click a collapsed card's lone button assuming it's a disclosure toggle.
+
+**What was confirmed as a side effect:** deleting a mid-group card correctly relabels the remaining cards' letters (e.g. removing "a" from a 3-member group relabels the former "b"/"c" down to "a"/"b") and **the remaining cards' own data survives the relabeling** — inspected directly after the accidental deletion. This is incidental evidence for (not the primary basis of) the "collapsed cards retain their data" claim in [docxsity.md](docxsity.md) — the primary evidence is that every multi-member group tested saved correctly as a whole with earlier members long collapsed.
+
+**Not investigated further:** whether a genuine, non-destructive expand control exists elsewhere in Docxsity's UI (a different click target, a keyboard interaction, etc.) was out of scope for that test session and was not chased down. Recorded here so the same accidental click isn't repeated by a future session.
+
+---
+
+## Docxsity's markdown renderer misinterprets text starting with "pie" as a Mermaid diagram (informational — not a project bug, not fixed, not worked around)
+
+**This is filed here as a durable, external fact worth knowing before it's rediscovered as a mystery — not as an issue this project owns or has any open action item for.**
+
+**Symptom:** during Phase 4B live validation, NDA question Q104's real Option D text — the literal string `"pie chart"` — was pasted via Docxsity's standard "Paste Raw Markdown" → "Render & Insert" flow (the same `pasteMarkdown()` call path used successfully for every other field in this project). The paste reported success (dialog closed normally, no error at paste time), but the option's actual rendered content became the string `"Error rendering flow chart"` instead of the pasted text. This was only discovered later, when Docxsity's own SAVE validation rejected the option as empty (`"Option text is required."`).
+
+**Root cause, confirmed via the browser console:**
+```
+Parsing failed: Lexer error on line 1, column 5: unexpected character: ->c<- at offset: 4, skipped 5 characters.
+```
+Offset 4 is immediately after `"pie "`; the unexpected character is `c`, from `"chart"`. Docxsity's rich-text renderer evidently auto-detects text beginning with the word **"pie"** as the start of a Mermaid.js `pie`-diagram declaration — even with no code fence present — attempts to parse the remainder as Mermaid pie-chart syntax, fails, and silently substitutes a generic error string in place of the actual content, with no error surfaced at paste time.
+
+**Reproduced 3 times independently** (the original paste, plus two manual re-pastes into two different option cards in the same modal) — always the identical result for text starting with "pie." A control paste of `"bar chart TEST"` into the same modal, same session, succeeded normally — ruling out a general "chart"-keyword trigger, a stale-textarea bug in `pasteMarkdown()`, or a session-wide rendering-pipeline glitch. The trigger is specifically text beginning with "pie."
+
+**Why this is not treated as a project defect:** the corruption happens entirely inside Docxsity's own third-party markdown/rich-text renderer, on content this project's `pasteMarkdown()` correctly delivered (click, fill, confirm — every step completed and was observed to complete). `runPasteOptions()`'s own success signal (a completed paste-and-dialog-close cycle) has no way to detect a renderer silently substituting different content after the fact — the only place this becomes visible is later, at SAVE, via Docxsity's own required-field validation, which correctly rejects the corrupted result. A human manually pasting `"pie chart"` into the same field, with no automation involved, would hit the identical failure.
+
+**Explicitly not done, on direct instruction:** no scan of other NDA questions (or any other exam's content) for other Mermaid-keyword collisions (`graph`, `flowchart`, `sequenceDiagram`, `gantt`, `classDiagram`, `stateDiagram`, `erDiagram`, `journey`, etc.); no workaround, sanitization, or escaping added to `pasteMarkdown()` or anywhere else; no attempt to detect this failure class earlier (e.g. reading back the pasted content to verify it matches what was sent). See [nda-mathematics.md](nda-mathematics.md) §7 for the full incident record as it applies to Q104 specifically.
