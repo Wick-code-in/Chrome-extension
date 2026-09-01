@@ -11,10 +11,22 @@
   // as each is itself live-verified, per the project's incremental,
   // one-phase-at-a-time discipline.
 
-  const MCQ_OPTION_VALUE = "MCQ Choice";
+  // RE-VERIFIED live (2026-09-01, Docxsity-wide Question Type
+  // reconnaissance): the site renamed/expanded this ng-select's option set
+  // since the original 2026-08-06 verification below — the real 6 options
+  // are now "Multiple Choice Question" (was "MCQ Choice"), "Multiple
+  // Select Question" (new), "True False", "Short Answer", "Long Answer",
+  // "Fill Blank". Confirmed identical — same option set, same default
+  // value — in both the standalone Add Question modal and inside a
+  // Question Group's Sub Question card, so this single constant covers
+  // both contexts with no exam- or context-specific branching. Only the
+  // label text changed; the ng-select's own DOM shape (class="qm-select
+  // ng-select ng-select-single", .ng-select-container/.ng-value/
+  // .ng-option) is unaffected, and DomHelpers.selectDropdown() needed no
+  // change to keep working against it.
+  const MCQ_OPTION_VALUE = "Multiple Choice Question";
   // VERIFIED: the reverted branch's guess for this ("Numerical") was wrong —
-  // the live Question Type ng-select's real 5 options are "MCQ Choice",
-  // "True False", "Short Answer", "Long Answer", "Fill Blank".
+  // "Fill Blank" itself is unchanged by the 2026-09-01 rename above.
   const FILL_BLANK_OPTION_VALUE = "Fill Blank";
 
   const SELECTORS = {
@@ -33,7 +45,8 @@
       // VERIFIED: an <ng-select> (class "qm-select ng-select ng-select-single"),
       // not a native <select>. Its currently-selected label renders inside a
       // child .ng-value element — read by DomHelpers' ng-select strategy.
-      // Defaults to "MCQ Choice" the moment the modal opens.
+      // Defaults to "Multiple Choice Question" the moment the modal opens
+      // (re-verified 2026-09-01 — see MCQ_OPTION_VALUE's own comment above).
       questionTypeDropdown: { labelText: "Question Type", find: "ng-select" },
       mcqOptionValue: MCQ_OPTION_VALUE,
       fillBlankOptionValue: FILL_BLANK_OPTION_VALUE,
