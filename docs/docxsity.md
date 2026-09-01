@@ -1,6 +1,6 @@
 # Docxsity State Flow
 
-Target site: https://www.docxsity.com/. This document describes what each state in `sites/docxsity/stateMachine.js` does, how it knows it succeeded, how it fails, and anything intentionally different from the Modality implementation (`sites/modality/stateMachine.js`). For *why* these decisions were made, see [decisions.md](decisions.md) and [architecture.md](architecture.md). For the `NDA_MATHEMATICS` exam type that first exercised this runtime's Question Group support with real data, see [nda-mathematics.md](nda-mathematics.md).
+Target site: https://www.docxsity.com/. This document describes what each state in `sites/docxsity/stateMachine.js` does, how it knows it succeeded, how it fails, and anything intentionally different from the Modality implementation (`sites/modality/stateMachine.js`). For *why* these decisions were made, see [decisions.md](decisions.md) and [architecture.md](architecture.md). For the `NDA_MATHEMATICS` exam type that first exercised this runtime's Question Group support with real data, see [nda-mathematics.md](nda-mathematics.md). For `NDA_GAT`, the second exam type to exercise it — including the first instruction-only (non-passage) groups and the first 10-member group — see [nda-gat.md](nda-gat.md).
 
 State order: `IDLE → PREPARE_FORM → PASTE_QUESTION → PASTE_OPTIONS → MARK_CORRECT → GENERATE_AI → ADD_TAGS → SAVE → NEXT_QUESTION → (PREPARE_FORM | COMPLETE)`.
 
@@ -26,7 +26,7 @@ group: {
 }
 ```
 
-or `null` for a standalone question. This shape is exam-agnostic — the same `questionGroupsByQuestionIndex()` function in `lib/parser.js` produces it for UPSC Paper II and for NDA Mathematics alike (see [nda-mathematics.md](nda-mathematics.md) for NDA's specific parser path). **Nothing about the `group` field or its producer is Docxsity-specific** — a *runtime* (a site's `stateMachine.js`) is what decides what to actually do with it, and the two sites decide differently.
+or `null` for a standalone question. This shape is exam-agnostic — the same `questionGroupsByQuestionIndex()` function in `lib/parser.js` produces it for UPSC Paper II, NDA Mathematics, and NDA GAT alike (see [nda-mathematics.md](nda-mathematics.md) and [nda-gat.md](nda-gat.md) for each exam's own parser path). **Nothing about the `group` field or its producer is Docxsity-specific** — a *runtime* (a site's `stateMachine.js`) is what decides what to actually do with it, and the two sites decide differently. Nor is `instructionMarkdown`'s content restricted to passages: GAT's own parser populates it with a shared Directions/instruction sentence for 9 of its 10 Question Groups, which have no passage at all — the runtime described below never inspects or cares what kind of text `instructionMarkdown` holds, only that it exists once per group (see [decisions.md](decisions.md) and [nda-gat.md](nda-gat.md) §8 for why this was a deliberate generalization, not an accident).
 
 ### Modality's implementation (the studied precedent)
 
@@ -95,7 +95,9 @@ Phases 3A–3C were validated with synthetic (hand-constructed) test data agains
 
 ## PREPARE_FORM
 
-**Purpose:** open the Add Question modal, select the Question Type (`MCQ Choice` or `Fill Blank`), and fill Marks and Penalty from the exam's marking scheme.
+**Purpose:** open the Add Question modal, select the Question Type (`Multiple Choice Question` or `Fill Blank`), and fill Marks and Penalty from the exam's marking scheme.
+
+**Question Type label history:** the ng-select's live option labels changed at some point after this state was first built and verified — the value this project automates for MCQ was originally `"MCQ Choice"`, live-verified 2026-08-06; it was re-verified 2026-09-01 (during GAT work, but affecting every exam type, not GAT-specific) to now read `"Multiple Choice Question"`, alongside a new sixth option, `"Multiple Select Question"`, that didn't previously exist. The full current live set is `Multiple Choice Question`, `Multiple Select Question`, `True False`, `Short Answer`, `Long Answer`, `Fill Blank` — only the MCQ label and option count changed; `Fill Blank` is unaffected. The fix was a single constant update in `sites/docxsity/selectors.js` (`MCQ_OPTION_VALUE`) — `DomHelpers.selectDropdown()` needed no change, since it was already generic ng-select automation with no hardcoded label knowledge (see [decisions.md](decisions.md) and [debugging-notes.md](debugging-notes.md) for the investigation).
 
 Sequence: look up `MarkingSchemes.getMarkingScheme(examType)` (fails closed if unconfigured) → click "Add Question" → wait for the modal (`addQuestionModal`, resolves the workflow's root for this question) → `selectDropdown()` the Question Type ng-select → `fillInput()` Marks → `fillInput()` Penalty.
 
@@ -140,7 +142,7 @@ This state is composed of two deliberately separate responsibilities:
 
 **Failure handling:** `question.options` missing → non-retryable failure. A specific option's text missing → non-retryable failure naming the letter. Any DOM step failure (card creation, paste) propagates.
 
-**Key decision:** the starting option-card count is not assumed to be a fixed default. Docxsity's Question Type control itself resizes the options array on real UI interaction (confirmed live: selecting "Fill Blank" collapses cards to 0, selecting "MCQ Choice" back populates exactly 4 empty cards) — whether this has already fired by the time `PASTE_OPTIONS` runs depends on that Add Question modal's interaction history. `ensureOptionCount()` is written to be correct from either starting point by construction, rather than assuming a fixed baseline. This was investigated and confirmed as real site behavior, not a bug — see [debugging-notes.md](debugging-notes.md).
+**Key decision:** the starting option-card count is not assumed to be a fixed default. Docxsity's Question Type control itself resizes the options array on real UI interaction (confirmed live 2026-08-06: selecting "Fill Blank" collapses cards to 0, selecting the MCQ option — labelled "MCQ Choice" at the time, "Multiple Choice Question" as of the 2026-09-01 label rename described under PREPARE_FORM above — back populates exactly 4 empty cards) — whether this has already fired by the time `PASTE_OPTIONS` runs depends on that Add Question modal's interaction history. `ensureOptionCount()` is written to be correct from either starting point by construction, rather than assuming a fixed baseline. This was investigated and confirmed as real site behavior, not a bug — see [debugging-notes.md](debugging-notes.md).
 
 **Modality difference:** Modality has no equivalent `ensureOptionCount()` step — it assumes 4 options always exist and iterates `OPTION_LETTERS` directly. Docxsity needs the extra step because of the option-resizing behavior above.
 

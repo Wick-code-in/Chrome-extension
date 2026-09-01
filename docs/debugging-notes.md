@@ -77,6 +77,24 @@ A one-line, structural-selector change — no change to `domHelpers.js`, timing,
 
 ---
 
+## Docxsity's Question Type ng-select silently renamed its MCQ label, surfacing as "buttons disabled, no error" rather than a parse failure
+
+**Symptom:** while preparing to live-test GAT, a loaded Markdown file showed "Markdown Loaded" in the panel status and a correct filename, but the question counter read "0 / 0" and Execute Step/Pass Step/Jump were all disabled — with no error message anywhere explaining why.
+
+**Investigation, in order:**
+
+1. **Traced the panel's own enable/disable logic first**, not assumed. `content/panel.js`'s `refreshFromSession()` disables all four controls purely on `session.getTotalQuestions() === 0` — and, critically, the status text it shows after a load is the *loader's* own success message (`"Markdown Loaded"`), not anything derived from `parseDocument()`'s result. This is why a zero-question parse produces no visible error at all: the loader genuinely did succeed at reading the file; only the parse afterward produced nothing.
+2. **This narrowed the question to why `parsed.questions.length` was 0** for a file already statically verified (via a Node harness, independent of the browser) to parse to 150 questions with the current code on disk. Two live candidates: a stale, unreloaded extension bundle (Chrome doesn't hot-reload unpacked-extension source on save), or a title-detection mismatch on the specific file loaded.
+3. Separately, live DOM inspection of Docxsity's Question Type control (unrelated at first, done for GAT reconnaissance) found its displayed default value read `"Multiple Choice Question"`, not the `"MCQ Choice"` value `sites/docxsity/selectors.js` had recorded from an earlier verification pass. Opening the dropdown listed 6 options where only 5 had been documented, with a new `"Multiple Select Question"` entry.
+
+**Root cause:** Docxsity's own live UI renamed the MCQ option's label (and added a new option) at some point after the original `selectors.js` verification — a site-side change, not caused by anything in this project. `DomHelpers.selectDropdown()`'s idempotent shortcut (skip clicking if the control already displays the target value) meant this didn't manifest as an obvious dropdown-selection failure: the control's real default already matched what was wanted, it just didn't match the *stale string* `runPrepareForm()` was comparing against, so `PREPARE_FORM` would have gone on to search for a nonexistent `.ng-option` and time out — a separate, later symptom from the "0 questions loaded" one above, which actually traced back to something else (a title-detection/stale-bundle question resolved independently, not this label rename itself).
+
+**Fix:** a single constant update in `sites/docxsity/selectors.js` (`MCQ_OPTION_VALUE`). See [decisions.md](decisions.md) for the full "why" and the general lesson about selector values needing periodic re-verification, and [nda-gat.md](nda-gat.md) §4 for the Docxsity-wide (not GAT-specific) scope of this fix.
+
+**Lesson:** when a loaded file produces no visible error but also no usable session, check the panel's own status-text plumbing before assuming the parser is at fault — `panel.js` currently has no code path that distinguishes "loaded, parsed to zero questions" from "loaded, parsed fine," and both look identical in the UI. A quick console check (`window.ExamUploadAssistantSession.getTotalQuestions()`, `window.ExamUploadAssistantParser.detectExamType(...)`) is faster than assuming either the parser or the site is broken.
+
+---
+
 ## Docxsity's markdown renderer misinterprets text starting with "pie" as a Mermaid diagram (informational — not a project bug, not fixed, not worked around)
 
 **This is filed here as a durable, external fact worth knowing before it's rediscovered as a mystery — not as an issue this project owns or has any open action item for.**
