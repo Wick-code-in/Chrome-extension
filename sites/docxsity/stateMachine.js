@@ -3,6 +3,7 @@
   const DomHelpers = window.ExamUploadAssistantDomHelpers;
   const Selectors = window.ExamUploadAssistantSelectors;
   const MarkingSchemes = window.ExamUploadAssistantMarkingSchemes;
+  const Settings = window.ExamUploadAssistantSettings;
 
   const POSITIVE_INTEGER_PATTERN = /^\d+$/;
   const OPTION_LETTERS = ["A", "B", "C", "D"];
@@ -235,6 +236,22 @@
       };
     }
 
+    // Settings' temporary Marks/Penalty overrides are resolved against the
+    // paper's own default here, before ensureQuestionFormReady — fail
+    // closed if an override is enabled but its value isn't usable, rather
+    // than silently falling back to the paper default or opening/mutating
+    // the modal with a bad value already decided. markingSchemes.js itself
+    // is never touched by this — only the value handed to fillInput below.
+    const effectiveMarks = Settings.resolveEffectiveMarks(markingScheme.marks);
+    if (!effectiveMarks.success) {
+      return effectiveMarks;
+    }
+
+    const effectivePenalty = Settings.resolveEffectivePenalty(markingScheme.penalty);
+    if (!effectivePenalty.success) {
+      return effectivePenalty;
+    }
+
     const formReadyResult = await ensureQuestionFormReady(question);
     if (!formReadyResult.success) {
       return formReadyResult;
@@ -247,7 +264,7 @@
       return typeResult;
     }
 
-    const marksResult = DomHelpers.fillInput(selectors.marksInput, markingScheme.marks, { root });
+    const marksResult = DomHelpers.fillInput(selectors.marksInput, effectiveMarks.value, { root });
     if (!marksResult.success) {
       return marksResult;
     }
@@ -255,7 +272,7 @@
     // VERIFIED: unlike Modality (which skips Penalty for its non-MCQ
     // question type), Docxsity's Penalty field stays present and enabled
     // regardless of Question Type — filled unconditionally for every type.
-    const penaltyResult = DomHelpers.fillInput(selectors.penaltyInput, markingScheme.penalty, { root });
+    const penaltyResult = DomHelpers.fillInput(selectors.penaltyInput, effectivePenalty.value, { root });
     if (!penaltyResult.success) {
       return penaltyResult;
     }
@@ -477,6 +494,18 @@
 
     const question = Session.getCurrentQuestion();
 
+    // Settings toggle, checked first and kept structurally separate from
+    // the correctAnswer:null case below: this is the user explicitly
+    // instructing the workflow to skip the step, not "no answer exists" —
+    // the two must never be conflated into one message/path.
+    if (!Settings.isSelectCorrectOptionEnabled()) {
+      return {
+        success: true,
+        message: "Select Correct Option is disabled in Settings — skipped.",
+        retryable: false,
+      };
+    }
+
     // VERIFIED: Fill Blank has no correct-answer mechanism at all — its
     // "Select Correct Answer" / per-option buttons are replaced entirely by
     // "Answers for Blanks" / "Case Sensitive Matching". Not an error: this
@@ -562,6 +591,14 @@
 
     const question = Session.getCurrentQuestion();
 
+    if (!Settings.isGenerateAiEnabled()) {
+      return {
+        success: true,
+        message: "Generate with AI is disabled in Settings — skipped.",
+        retryable: false,
+      };
+    }
+
     const rootResult = await resolveCurrentRoot(question);
     if (!rootResult.success) {
       return rootResult;
@@ -638,6 +675,14 @@
     }
 
     const question = Session.getCurrentQuestion();
+
+    if (!Settings.isTagsEnabled()) {
+      return {
+        success: true,
+        message: "Tags is disabled in Settings — skipped.",
+        retryable: false,
+      };
+    }
 
     if (!question.subject) {
       return {

@@ -13,6 +13,7 @@
       "js": [
         "lib/parser.js",
         "lib/session.js",
+        "lib/settings.js",
         "sites/modality/domHelpers.js",
         "sites/modality/selectors.js",
         "sites/modality/stateMachine.js",
@@ -27,6 +28,7 @@
       "js": [
         "lib/parser.js",
         "lib/session.js",
+        "lib/settings.js",
         "sites/docxsity/config/markingSchemes.js",
         "sites/docxsity/domHelpers.js",
         "sites/docxsity/selectors.js",

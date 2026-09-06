@@ -2,6 +2,7 @@
   const Session = window.ExamUploadAssistantSession;
   const DomHelpers = window.ExamUploadAssistantDomHelpers;
   const Selectors = window.ExamUploadAssistantSelectors;
+  const Settings = window.ExamUploadAssistantSettings;
 
   const PREPARE_FORM_MARKS_VALUE = "4";
   const PREPARE_FORM_PENALTY_VALUE = "1";
@@ -239,6 +240,29 @@
       };
     }
 
+    const upscMarksPenalty = MARKS_PENALTY_BY_UPSC_PAPER[Session.getExamType()];
+    const paperMarksValue = upscMarksPenalty ? upscMarksPenalty.marks : PREPARE_FORM_MARKS_VALUE;
+    const paperPenaltyValue = upscMarksPenalty ? upscMarksPenalty.penalty : PREPARE_FORM_PENALTY_VALUE;
+
+    // Settings' temporary Marks/Penalty overrides, resolved against the
+    // paper default before ensureQuestionFormReady so a bad override fails
+    // before the modal opens. Penalty is only resolved for MCQ, mirroring
+    // this function's own existing MCQ-only Penalty fill below — a Fill
+    // Blank question never touches Penalty either way, so an invalid
+    // Penalty override must not block it.
+    const effectiveMarks = Settings.resolveEffectiveMarks(paperMarksValue);
+    if (!effectiveMarks.success) {
+      return effectiveMarks;
+    }
+
+    let effectivePenalty = null;
+    if (question.type === "MCQ") {
+      effectivePenalty = Settings.resolveEffectivePenalty(paperPenaltyValue);
+      if (!effectivePenalty.success) {
+        return effectivePenalty;
+      }
+    }
+
     const formReadyResult = await ensureQuestionFormReady(question);
     if (!formReadyResult.success) {
       return formReadyResult;
@@ -251,17 +275,13 @@
       return typeResult;
     }
 
-    const upscMarksPenalty = MARKS_PENALTY_BY_UPSC_PAPER[Session.getExamType()];
-    const marksValue = upscMarksPenalty ? upscMarksPenalty.marks : PREPARE_FORM_MARKS_VALUE;
-    const penaltyValue = upscMarksPenalty ? upscMarksPenalty.penalty : PREPARE_FORM_PENALTY_VALUE;
-
-    const marksResult = DomHelpers.fillInput(selectors.marksInput, marksValue, { root });
+    const marksResult = DomHelpers.fillInput(selectors.marksInput, effectiveMarks.value, { root });
     if (!marksResult.success) {
       return marksResult;
     }
 
     if (question.type === "MCQ") {
-      const penaltyResult = DomHelpers.fillInput(selectors.penaltyInput, penaltyValue, { root });
+      const penaltyResult = DomHelpers.fillInput(selectors.penaltyInput, effectivePenalty.value, { root });
       if (!penaltyResult.success) {
         return penaltyResult;
       }
@@ -411,6 +431,18 @@
 
     const question = Session.getCurrentQuestion();
 
+    // Settings toggle, checked first and kept structurally separate from
+    // the correctAnswer:null case below: this is the user explicitly
+    // instructing the workflow to skip the step, not "no answer exists" —
+    // the two must never be conflated into one message/path.
+    if (!Settings.isSelectCorrectOptionEnabled()) {
+      return {
+        success: true,
+        message: "Select Correct Option is disabled in Settings — skipped.",
+        retryable: false,
+      };
+    }
+
     if (!question.correctAnswer) {
       // UPSC papers from 2024–2025 are released without an official answer
       // key (verified against the sample papers — earlier years do carry
@@ -470,6 +502,15 @@
     }
 
     const question = Session.getCurrentQuestion();
+
+    if (!Settings.isGenerateAiEnabled()) {
+      return {
+        success: true,
+        message: "Generate with AI is disabled in Settings — skipped.",
+        retryable: false,
+      };
+    }
+
     const rootResult = resolveCurrentRoot(question);
     if (!rootResult.success) {
       return rootResult;
@@ -501,6 +542,14 @@
     }
 
     const question = Session.getCurrentQuestion();
+
+    if (!Settings.isTagsEnabled()) {
+      return {
+        success: true,
+        message: "Tags is disabled in Settings — skipped.",
+        retryable: false,
+      };
+    }
 
     if (!question.subject) {
       return {

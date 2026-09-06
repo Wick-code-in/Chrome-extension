@@ -10,32 +10,65 @@
     const panel = document.createElement("div");
     panel.className = "panel";
     panel.innerHTML = `
-      <div class="panel-header" data-field="header">Exam Upload Assistant</div>
-      <button type="button" class="panel-load-button" data-field="load-button">Load Markdown</button>
-      <div class="panel-row">
-        <span class="panel-label">File</span>
-        <span class="panel-value" data-field="filename">No file loaded</span>
+      <div class="panel-header" data-field="header">
+        <span class="panel-header-title">Exam Upload Assistant</span>
+        <button type="button" class="panel-settings-toggle" data-field="settings-open-button" title="Settings">&#9881;</button>
       </div>
-      <div class="panel-row">
-        <span class="panel-label">Question</span>
-        <span class="panel-value" data-field="question-counter">0 / 0</span>
+      <div class="panel-main-view" data-field="main-view">
+        <button type="button" class="panel-load-button" data-field="load-button">Load Markdown</button>
+        <div class="panel-row">
+          <span class="panel-label">File</span>
+          <span class="panel-value" data-field="filename">No file loaded</span>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Question</span>
+          <span class="panel-value" data-field="question-counter">0 / 0</span>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">State</span>
+          <span class="panel-value" data-field="current-state">IDLE</span>
+        </div>
+        <button type="button" class="panel-execute-button" data-field="execute-button">Execute Step</button>
+        <button type="button" class="panel-pass-button" data-field="pass-button">Pass Step</button>
+        <div class="panel-jump-row">
+          <input type="text" inputmode="numeric" class="panel-jump-input" data-field="jump-input" placeholder="Question #" />
+          <button type="button" class="panel-jump-button" data-field="jump-button">Jump</button>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Status</span>
+          <span class="panel-value" data-field="status">Ready</span>
+        </div>
+        <div class="panel-progress-track">
+          <div class="panel-progress-fill" data-field="progress-fill"></div>
+        </div>
       </div>
-      <div class="panel-row">
-        <span class="panel-label">State</span>
-        <span class="panel-value" data-field="current-state">IDLE</span>
-      </div>
-      <button type="button" class="panel-execute-button" data-field="execute-button">Execute Step</button>
-      <button type="button" class="panel-pass-button" data-field="pass-button">Pass Step</button>
-      <div class="panel-jump-row">
-        <input type="text" inputmode="numeric" class="panel-jump-input" data-field="jump-input" placeholder="Question #" />
-        <button type="button" class="panel-jump-button" data-field="jump-button">Jump</button>
-      </div>
-      <div class="panel-row">
-        <span class="panel-label">Status</span>
-        <span class="panel-value" data-field="status">Ready</span>
-      </div>
-      <div class="panel-progress-track">
-        <div class="panel-progress-fill" data-field="progress-fill"></div>
+      <div class="panel-settings-view" data-field="settings-view" hidden>
+        <div class="panel-settings-header">
+          <button type="button" class="panel-settings-back" data-field="settings-back-button">&larr; Back</button>
+          <span class="panel-settings-title">Settings</span>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Marks</span>
+          <button type="button" class="panel-toggle-button" data-field="marks-override-toggle">OFF</button>
+        </div>
+        <input type="text" inputmode="decimal" class="panel-jump-input panel-settings-input" data-field="marks-override-input" placeholder="Marks value" disabled />
+        <div class="panel-row">
+          <span class="panel-label">Penalty</span>
+          <button type="button" class="panel-toggle-button" data-field="penalty-override-toggle">OFF</button>
+        </div>
+        <input type="text" inputmode="decimal" class="panel-jump-input panel-settings-input" data-field="penalty-override-input" placeholder="Penalty value" disabled />
+        <div class="panel-row">
+          <span class="panel-label">Select Correct Option</span>
+          <button type="button" class="panel-toggle-button" data-field="select-correct-toggle">ON</button>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Generate with AI</span>
+          <button type="button" class="panel-toggle-button" data-field="generate-ai-toggle">ON</button>
+        </div>
+        <div class="panel-row">
+          <span class="panel-label">Tags</span>
+          <button type="button" class="panel-toggle-button" data-field="tags-toggle">ON</button>
+        </div>
       </div>
     `;
     shadowRoot.appendChild(panel);
@@ -85,6 +118,17 @@
     const headerEl = panelEl.querySelector('[data-field="header"]');
     const loadButtonEl = panelEl.querySelector('[data-field="load-button"]');
     const filenameEl = panelEl.querySelector('[data-field="filename"]');
+    const settingsOpenButtonEl = panelEl.querySelector('[data-field="settings-open-button"]');
+    const settingsBackButtonEl = panelEl.querySelector('[data-field="settings-back-button"]');
+    const mainViewEl = panelEl.querySelector('[data-field="main-view"]');
+    const settingsViewEl = panelEl.querySelector('[data-field="settings-view"]');
+    const marksOverrideToggleEl = panelEl.querySelector('[data-field="marks-override-toggle"]');
+    const marksOverrideInputEl = panelEl.querySelector('[data-field="marks-override-input"]');
+    const penaltyOverrideToggleEl = panelEl.querySelector('[data-field="penalty-override-toggle"]');
+    const penaltyOverrideInputEl = panelEl.querySelector('[data-field="penalty-override-input"]');
+    const selectCorrectToggleEl = panelEl.querySelector('[data-field="select-correct-toggle"]');
+    const generateAiToggleEl = panelEl.querySelector('[data-field="generate-ai-toggle"]');
+    const tagsToggleEl = panelEl.querySelector('[data-field="tags-toggle"]');
 
     const api = {
       setQuestionCounter(text) {
@@ -220,6 +264,95 @@
 
         refreshFromSession(result);
       });
+    });
+
+    // Settings view: a second, initially-hidden sibling of the main view,
+    // switched in place inside the same panel — never a separate window,
+    // never a resize. No Save button: every control writes straight through
+    // to window.ExamUploadAssistantSettings on change, so changes take
+    // effect immediately. The gear icon lives inside the draggable header,
+    // so its own mousedown must not also start a drag.
+    function setToggleButtonState(buttonEl, isOn) {
+      buttonEl.textContent = isOn ? "ON" : "OFF";
+      buttonEl.classList.toggle("is-on", isOn);
+    }
+
+    function renderSettingsView() {
+      const settings = window.ExamUploadAssistantSettings;
+
+      const marksOverride = settings.getMarksOverride();
+      setToggleButtonState(marksOverrideToggleEl, marksOverride.enabled);
+      marksOverrideInputEl.value = marksOverride.value;
+      marksOverrideInputEl.disabled = !marksOverride.enabled;
+
+      const penaltyOverride = settings.getPenaltyOverride();
+      setToggleButtonState(penaltyOverrideToggleEl, penaltyOverride.enabled);
+      penaltyOverrideInputEl.value = penaltyOverride.value;
+      penaltyOverrideInputEl.disabled = !penaltyOverride.enabled;
+
+      setToggleButtonState(selectCorrectToggleEl, settings.isSelectCorrectOptionEnabled());
+      setToggleButtonState(generateAiToggleEl, settings.isGenerateAiEnabled());
+      setToggleButtonState(tagsToggleEl, settings.isTagsEnabled());
+    }
+
+    settingsOpenButtonEl.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+    });
+
+    settingsOpenButtonEl.addEventListener("click", () => {
+      renderSettingsView();
+      mainViewEl.hidden = true;
+      settingsViewEl.hidden = false;
+    });
+
+    settingsBackButtonEl.addEventListener("click", () => {
+      settingsViewEl.hidden = true;
+      mainViewEl.hidden = false;
+    });
+
+    marksOverrideToggleEl.addEventListener("click", () => {
+      const settings = window.ExamUploadAssistantSettings;
+      const nextEnabled = !settings.getMarksOverride().enabled;
+      settings.setMarksEnabled(nextEnabled);
+      setToggleButtonState(marksOverrideToggleEl, nextEnabled);
+      marksOverrideInputEl.disabled = !nextEnabled;
+    });
+
+    marksOverrideInputEl.addEventListener("input", () => {
+      window.ExamUploadAssistantSettings.setMarksValue(marksOverrideInputEl.value);
+    });
+
+    penaltyOverrideToggleEl.addEventListener("click", () => {
+      const settings = window.ExamUploadAssistantSettings;
+      const nextEnabled = !settings.getPenaltyOverride().enabled;
+      settings.setPenaltyEnabled(nextEnabled);
+      setToggleButtonState(penaltyOverrideToggleEl, nextEnabled);
+      penaltyOverrideInputEl.disabled = !nextEnabled;
+    });
+
+    penaltyOverrideInputEl.addEventListener("input", () => {
+      window.ExamUploadAssistantSettings.setPenaltyValue(penaltyOverrideInputEl.value);
+    });
+
+    selectCorrectToggleEl.addEventListener("click", () => {
+      const settings = window.ExamUploadAssistantSettings;
+      const nextEnabled = !settings.isSelectCorrectOptionEnabled();
+      settings.setSelectCorrectOptionEnabled(nextEnabled);
+      setToggleButtonState(selectCorrectToggleEl, nextEnabled);
+    });
+
+    generateAiToggleEl.addEventListener("click", () => {
+      const settings = window.ExamUploadAssistantSettings;
+      const nextEnabled = !settings.isGenerateAiEnabled();
+      settings.setGenerateAiEnabled(nextEnabled);
+      setToggleButtonState(generateAiToggleEl, nextEnabled);
+    });
+
+    tagsToggleEl.addEventListener("click", () => {
+      const settings = window.ExamUploadAssistantSettings;
+      const nextEnabled = !settings.isTagsEnabled();
+      settings.setTagsEnabled(nextEnabled);
+      setToggleButtonState(tagsToggleEl, nextEnabled);
     });
 
     // Controls that depend on an active session start disabled — no file has
