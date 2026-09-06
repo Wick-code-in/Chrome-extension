@@ -167,6 +167,8 @@
       passButtonEl.disabled = !hasQuestions;
       jumpInputEl.disabled = !hasQuestions;
       jumpButtonEl.disabled = !hasQuestions;
+
+      applySettingsAvailability(hasQuestions);
     }
 
     // Panel-wide busy guard, state-agnostic: executeStep() is async and can
@@ -277,22 +279,46 @@
       buttonEl.classList.toggle("is-on", isOn);
     }
 
+    // Settings controls are only meaningful once a paper is actually loaded
+    // — there is no paper-specific default to override, and no workflow
+    // step to skip, before that. Gated on the same hasQuestions predicate
+    // (and called from the same places) as the main panel's own
+    // Execute/Pass/Jump controls, so "no paper loaded" reads identically
+    // everywhere in the panel. The gear icon and Back button are
+    // deliberately NOT gated here — opening/closing the Settings view is
+    // always allowed, only the controls inside it are not.
+    function applySettingsAvailability(hasQuestions) {
+      const settings = window.ExamUploadAssistantSettings;
+
+      marksOverrideToggleEl.disabled = !hasQuestions;
+      penaltyOverrideToggleEl.disabled = !hasQuestions;
+      selectCorrectToggleEl.disabled = !hasQuestions;
+      generateAiToggleEl.disabled = !hasQuestions;
+      tagsToggleEl.disabled = !hasQuestions;
+
+      // The override inputs have two independent reasons to be disabled —
+      // no paper loaded, or their own override toggle is OFF — either one
+      // is sufficient.
+      marksOverrideInputEl.disabled = !hasQuestions || !settings.getMarksOverride().enabled;
+      penaltyOverrideInputEl.disabled = !hasQuestions || !settings.getPenaltyOverride().enabled;
+    }
+
     function renderSettingsView() {
       const settings = window.ExamUploadAssistantSettings;
 
       const marksOverride = settings.getMarksOverride();
       setToggleButtonState(marksOverrideToggleEl, marksOverride.enabled);
       marksOverrideInputEl.value = marksOverride.value;
-      marksOverrideInputEl.disabled = !marksOverride.enabled;
 
       const penaltyOverride = settings.getPenaltyOverride();
       setToggleButtonState(penaltyOverrideToggleEl, penaltyOverride.enabled);
       penaltyOverrideInputEl.value = penaltyOverride.value;
-      penaltyOverrideInputEl.disabled = !penaltyOverride.enabled;
 
       setToggleButtonState(selectCorrectToggleEl, settings.isSelectCorrectOptionEnabled());
       setToggleButtonState(generateAiToggleEl, settings.isGenerateAiEnabled());
       setToggleButtonState(tagsToggleEl, settings.isTagsEnabled());
+
+      applySettingsAvailability(window.ExamUploadAssistantSession.getTotalQuestions() > 0);
     }
 
     settingsOpenButtonEl.addEventListener("mousedown", (event) => {

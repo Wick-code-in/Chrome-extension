@@ -249,7 +249,8 @@
 .panel-execute-button:disabled,
 .panel-pass-button:disabled,
 .panel-jump-input:disabled,
-.panel-jump-button:disabled {
+.panel-jump-button:disabled,
+.panel-toggle-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;

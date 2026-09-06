@@ -1,6 +1,6 @@
 # Docxsity State Flow
 
-Target site: https://www.docxsity.com/. This document describes what each state in `sites/docxsity/stateMachine.js` does, how it knows it succeeded, how it fails, and anything intentionally different from the Modality implementation (`sites/modality/stateMachine.js`). For *why* these decisions were made, see [decisions.md](decisions.md) and [architecture.md](architecture.md). For the `NDA_MATHEMATICS` exam type that first exercised this runtime's Question Group support with real data, see [nda-mathematics.md](nda-mathematics.md). For `NDA_GAT`, the second exam type to exercise it — including the first instruction-only (non-passage) groups and the first 10-member group — see [nda-gat.md](nda-gat.md).
+Target site: https://www.docxsity.com/. This document describes what each state in `sites/docxsity/stateMachine.js` does, how it knows it succeeded, how it fails, and anything intentionally different from the Modality implementation (`sites/modality/stateMachine.js`). For *why* these decisions were made, see [decisions.md](decisions.md) and [architecture.md](architecture.md). For the `NDA_MATHEMATICS` exam type that first exercised this runtime's Question Group support with real data, see [nda-mathematics.md](nda-mathematics.md). For `NDA_GAT`, the second exam type to exercise it — including the first instruction-only (non-passage) groups and the first 10-member group — see [nda-gat.md](nda-gat.md). For the extension-wide Settings feature that several states below now consult (Marks/Penalty overrides, feature toggles), see the [Settings](#settings) section below and [decisions.md](decisions.md) for the full rationale.
 
 State order: `IDLE → PREPARE_FORM → PASTE_QUESTION → PASTE_OPTIONS → MARK_CORRECT → GENERATE_AI → ADD_TAGS → SAVE → NEXT_QUESTION → (PREPARE_FORM | COMPLETE)`.
 
@@ -81,6 +81,25 @@ Phases 3A–3C were validated with synthetic (hand-constructed) test data agains
 
 ---
 
+## Settings
+
+**Extension-wide, not Docxsity-specific — see [decisions.md](decisions.md) for the full design rationale.** The Settings feature (a gear icon on the panel, backed by `lib/settings.js`) gives the operator five temporary, non-persistent runtime controls: a Marks override, a Penalty override, and three feature toggles — Select Correct Option, Generate with AI, Tags. Modality's own `stateMachine.js` independently implements the identical four touch-points described below — this section documents Docxsity's copy of that wiring, not a Docxsity-only feature.
+
+Four places in this file consult it, none of which touch correct-answer detection, AI generation itself, tag functionality itself, `markingSchemes.js`, or any Question-Group/exam-type logic:
+
+- **`runPrepareForm()`** resolves `Settings.resolveEffectiveMarks(markingScheme.marks)` and `Settings.resolveEffectivePenalty(markingScheme.penalty)` right after the existing "no marking scheme configured" check, before `ensureQuestionFormReady()` opens any modal. Override OFF → the paper's configured value, unchanged. Override ON with a valid number → that value. Override ON with an empty or non-numeric value → a non-retryable failure naming which override is invalid — never a silent fallback to the paper default, and never a bad value handed to `fillInput()`. See [PREPARE_FORM](#prepare_form) below.
+- **`runMarkCorrect()`** checks `Settings.isSelectCorrectOptionEnabled()` first, before the existing `NUMERICAL`-type and `correctAnswer:null` checks. Disabled → a manufactured `{success: true, message: "Select Correct Option is disabled in Settings — skipped.", retryable: false}`. This is a structurally separate path from `correctAnswer: null` (the paper has no answer key) — the toggle means "skip this action regardless of whether an answer exists," never "treat the question as unanswered," and the two never share a message or a code path. See [MARK_CORRECT](#mark_correct) below.
+- **`runGenerateAi()`** checks `Settings.isGenerateAiEnabled()` immediately after fetching the current question, before the root is resolved or the button is clicked. Disabled → the same manufactured-success skip, before any DOM interaction. See [GENERATE_AI](#generate_ai) below.
+- **`runAddTags()`** checks `Settings.isTagsEnabled()` immediately after fetching the current question, before the existing "no subject to tag" check. Disabled → the same manufactured-success skip. See [ADD_TAGS](#add_tags) below.
+
+**Composes with Question Groups automatically, with zero group-aware code added.** All four checks read only `Settings` (plus, where relevant, `question.type`/`question.correctAnswer`/`question.subject`) — none inspect `question.group`. Since `MARK_CORRECT`/`GENERATE_AI` already run once per group member regardless of position (only `ADD_TAGS`/`SAVE` are skipped for non-last members, by the pre-existing group logic above), a toggle-driven skip applies identically to a standalone question, a passage group, an instruction-only group, or a large multi-member group — nothing new was needed to make this true.
+
+**Non-persistent by construction, not by an explicit reset.** `lib/settings.js` holds plain module-scope state with no `chrome.storage`/`localStorage` anywhere in it — resetting is simply what happens when a content script's module scope is re-created from scratch (page reload, extension reload), the same mechanism `Session` already relies on. Defaults: both overrides OFF, all three toggles ON — the same values the workflow already used before Settings existed, so a fresh session with Settings never opened behaves identically to before this feature.
+
+**All five controls stay disabled in the UI until a paper is loaded.** This is `content/panel.js`'s own rule, not this file's — see [decisions.md](decisions.md) for the full rationale — but it affects every state below in one way: nothing described in this section can actually be changed by the operator before `Session.getTotalQuestions() > 0`, even though the *values* it resolves against (`Settings.resolveEffectiveMarks`/`isTagsEnabled`/etc.) are always readable and always at their defaults until then. The gear icon and Back button are never gated, only the controls inside the Settings view.
+
+---
+
 ## IDLE
 
 **Purpose:** the state before any per-question automation has run. Performs no DOM interaction at all.
@@ -99,7 +118,7 @@ Phases 3A–3C were validated with synthetic (hand-constructed) test data agains
 
 **Question Type label history:** the ng-select's live option labels changed at some point after this state was first built and verified — the value this project automates for MCQ was originally `"MCQ Choice"`, live-verified 2026-08-06; it was re-verified 2026-09-01 (during GAT work, but affecting every exam type, not GAT-specific) to now read `"Multiple Choice Question"`, alongside a new sixth option, `"Multiple Select Question"`, that didn't previously exist. The full current live set is `Multiple Choice Question`, `Multiple Select Question`, `True False`, `Short Answer`, `Long Answer`, `Fill Blank` — only the MCQ label and option count changed; `Fill Blank` is unaffected. The fix was a single constant update in `sites/docxsity/selectors.js` (`MCQ_OPTION_VALUE`) — `DomHelpers.selectDropdown()` needed no change, since it was already generic ng-select automation with no hardcoded label knowledge (see [decisions.md](decisions.md) and [debugging-notes.md](debugging-notes.md) for the investigation).
 
-Sequence: look up `MarkingSchemes.getMarkingScheme(examType)` (fails closed if unconfigured) → click "Add Question" → wait for the modal (`addQuestionModal`, resolves the workflow's root for this question) → `selectDropdown()` the Question Type ng-select → `fillInput()` Marks → `fillInput()` Penalty.
+Sequence: look up `MarkingSchemes.getMarkingScheme(examType)` (fails closed if unconfigured) → resolve the Settings-effective Marks/Penalty values (`Settings.resolveEffectiveMarks`/`resolveEffectivePenalty` — see [Settings](#settings) above; also fails closed if an enabled override's value isn't numeric) → click "Add Question" → wait for the modal (`addQuestionModal`, resolves the workflow's root for this question) → `selectDropdown()` the Question Type ng-select → `fillInput()` Marks → `fillInput()` Penalty.
 
 **Completion signal:** each step's own DOM helper result; the modal wait and the idempotent `selectDropdown()` are the load-bearing ones (a Question Type ng-select already showing the right value is treated as success without re-clicking).
 
@@ -107,9 +126,10 @@ Sequence: look up `MarkingSchemes.getMarkingScheme(examType)` (fails closed if u
 - `question.hasImage` → immediate `retryable:true` pause: "This question contains an image. Insert it manually on the target website, then click Execute Step to continue."
 - Question type not `MCQ`/`NUMERICAL` → non-retryable failure directing the operator to fix the source markdown and Jump back.
 - No marking scheme configured for the exam type → non-retryable failure naming the exact file to edit (`sites/docxsity/config/markingSchemes.js`) — fail-closed, never guesses a value.
+- A Marks or Penalty override is enabled in Settings but its value is empty or non-numeric → non-retryable failure naming which override is invalid — see [Settings](#settings) above. Checked before any modal opens, so an invalid override never touches the DOM.
 - Any DOM step (click/wait/select/fill) failing propagates that step's own message.
 
-**Key decision:** Penalty is filled **unconditionally**, for both MCQ and Fill Blank — Docxsity's Penalty field stays present and enabled regardless of Question Type (verified live by switching types and re-checking the field).
+**Key decision:** Penalty is filled **unconditionally**, for both MCQ and Fill Blank — Docxsity's Penalty field stays present and enabled regardless of Question Type (verified live by switching types and re-checking the field). Both Marks and Penalty are the Settings-effective values (the paper default unless overridden — see [Settings](#settings) above), not `markingScheme.marks`/`.penalty` read directly.
 
 **Modality difference:** Modality skips Penalty entirely for its non-MCQ type; Docxsity does not, because the field itself behaves differently on this site. Both sites' `ensureQuestionFormReady()` now handle both a standalone question and a Question Group member (Sub Question card) — see [Question Groups](#question-groups) above for Docxsity's own version, built independently from Modality's.
 
@@ -152,6 +172,8 @@ This state is composed of two deliberately separate responsibilities:
 
 **Purpose:** click the correct option's own "Mark as Correct" button, scoped to that option's card.
 
+**Checked first, before anything below:** if `Settings.isSelectCorrectOptionEnabled()` is false, this state returns a manufactured `success:true` ("Select Correct Option is disabled in Settings — skipped.") without touching the DOM — see [Settings](#settings) above. This is a structurally separate path from the `correctAnswer:null` cases below; the two are never conflated into one message or one flag.
+
 **Completion signal:** waits for `button.qm-correct-btn.qm-correct-btn--active` inside that specific card — an observed DOM state, not a fixed delay.
 
 **Failure handling:**
@@ -169,6 +191,8 @@ This state is composed of two deliberately separate responsibilities:
 ## GENERATE_AI
 
 **Purpose:** click "Generate with AI" and wait for generation to actually finish, not just for the click to register.
+
+**Checked first:** if `Settings.isGenerateAiEnabled()` is false, this state returns a manufactured `success:true` ("Generate with AI is disabled in Settings — skipped.") before the root is even resolved — see [Settings](#settings) above. The AI-generation mechanism itself (the two-phase wait, the Explanation-content verification below) is completely untouched when the toggle is on.
 
 Sequence: click `button.qm-btn-generate-ai` → wait for it to gain `[disabled]` → wait for it to lose `[disabled]` (timeout `GENERATE_AI_TIMEOUT_MS = 30000`, longer than the default 10000ms elsewhere) → read the Explanation editor's content as a post-condition check.
 
@@ -191,7 +215,7 @@ Sequence: click `button.qm-btn-generate-ai` → wait for it to gain `[disabled]`
 
 **Completion signal:** waits for a `<span class="tib-tag-pill">` carrying the exact subject text to appear — not the input clearing, not a fixed delay.
 
-**Failure handling:** `question.subject` absent → manufactured `success:true`, "This question has no subject to tag — skipped." (not an error — some questions genuinely have no subject). Fill/click/pill-wait failures propagate as their own retryable failures.
+**Failure handling:** `Settings.isTagsEnabled()` false → manufactured `success:true`, "Tags is disabled in Settings — skipped." (checked first, before the subject check below — see [Settings](#settings) above). `question.subject` absent → manufactured `success:true`, "This question has no subject to tag — skipped." (not an error — some questions genuinely have no subject). Fill/click/pill-wait failures propagate as their own retryable failures.
 
 **Key decision:** exactly one responsibility — transfers the subject into a single top-level tag. Never touches "+ Sub Tag" (no sub-tag data exists in the parsed Question Object) or "Remove" (destructive). See [decisions.md](decisions.md) for why this exists as its own state rather than folding into `GENERATE_AI`.
 

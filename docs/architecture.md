@@ -9,7 +9,8 @@ Note: the repository also has a root-level `architecture.md`, which documents Ve
 ## Shared vs. site-specific code
 
 ```
-lib/parser.js, lib/session.js        — shared, website-independent
+lib/parser.js, lib/session.js,
+  lib/settings.js                     — shared, website-independent
 content/loader.js, panel.js,
   panel.css, content.js               — shared, website-independent
 
@@ -22,6 +23,8 @@ sites/docxsity/
 ```
 
 `manifest.json` has one `content_scripts` entry per domain, each loading the shared files plus only that site's own three files. Site selection happens once, at Chrome's own URL-matching layer, before any of the extension's JS runs — there is no `if (isDocxsity)` branch anywhere in the code. Both sites' files reuse the same global names (`window.ExamUploadAssistantSelectors`, `...DomHelpers`, `...StateMachine`) safely, because manifest-level `matches` guarantees only one site's files are ever injected into a given page.
+
+`lib/settings.js` (added for the Settings feature — see [decisions.md](decisions.md)) follows the exact same pattern `lib/session.js` already established: an in-memory module scope exposed as `window.ExamUploadAssistantSettings`, read and written by `content/panel.js` and by both sites' `stateMachine.js` files, never touching `chrome.storage`/`localStorage`. It carries no exam-type or Question-Group awareness of its own — each site's `stateMachine.js` decides when to consult it and what to do with the result, the same division of responsibility Session already has with respect to site-specific workflow code.
 
 **Why this split exists:** the first Docxsity integration attempt shared runtime automation code with Modality. As Docxsity-specific changes accumulated, that shared code grew branchy and eventually regressed the stable Modality implementation — the whole attempt was reverted (preserved on the `docxsity-experiment` branch as reference only). The rule going forward: only code that is *genuinely* website-independent — the question model, session state, and shared UI — is shared. Each site owns its selectors, DOM helpers, waits, and workflow completely, even where the two implementations end up looking similar. Similar-looking code between the two sites is expected and acceptable; it is deliberately never generalized into shared automation code, because that generalization is exactly what caused the original regression.
 
