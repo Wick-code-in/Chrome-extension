@@ -1,6 +1,6 @@
 # Docxsity Architecture
 
-This document explains the design philosophy behind `sites/docxsity/*` and the boundary between it and the rest of the extension. For the state-by-state behavior this philosophy produces, see [docxsity.md](docxsity.md). For specific decisions and their rationale, see [decisions.md](decisions.md). For investigations that shaped this design, see [debugging-notes.md](debugging-notes.md). For the `NDA_MATHEMATICS` exam type specifically (parser architecture, marking scheme, and how it exercises the Question Group runtime described here), see [nda-mathematics.md](nda-mathematics.md).
+This document explains the design philosophy behind `sites/docxsity/*` and the boundary between it and the rest of the extension. For the state-by-state behavior this philosophy produces, see [docxsity.md](docxsity.md). For specific decisions and their rationale, see [decisions.md](decisions.md). For investigations that shaped this design, see [debugging-notes.md](debugging-notes.md). For the `NDA_MATHEMATICS` exam type specifically (parser architecture, marking scheme, and how it exercises the Question Group runtime described here), see [nda-mathematics.md](nda-mathematics.md). For the Slideshow (Play/Pause automated execution) feature, which sits on top of the interface contract described below without altering it, see [slideshow.md](slideshow.md).
 
 Note: the repository also has a root-level `architecture.md`, which documents Version 1 of the extension (the original single-site `lib/*` implementation, before the Modality/Docxsity split). This document is scoped only to the current two-site architecture.
 
@@ -10,7 +10,7 @@ Note: the repository also has a root-level `architecture.md`, which documents Ve
 
 ```
 lib/parser.js, lib/session.js,
-  lib/settings.js                     — shared, website-independent
+  lib/settings.js, lib/slideshow.js   — shared, website-independent
 content/loader.js, panel.js,
   panel.css, content.js               — shared, website-independent
 
@@ -25,6 +25,8 @@ sites/docxsity/
 `manifest.json` has one `content_scripts` entry per domain, each loading the shared files plus only that site's own three files. Site selection happens once, at Chrome's own URL-matching layer, before any of the extension's JS runs — there is no `if (isDocxsity)` branch anywhere in the code. Both sites' files reuse the same global names (`window.ExamUploadAssistantSelectors`, `...DomHelpers`, `...StateMachine`) safely, because manifest-level `matches` guarantees only one site's files are ever injected into a given page.
 
 `lib/settings.js` (added for the Settings feature — see [decisions.md](decisions.md)) follows the exact same pattern `lib/session.js` already established: an in-memory module scope exposed as `window.ExamUploadAssistantSettings`, read and written by `content/panel.js` and by both sites' `stateMachine.js` files, never touching `chrome.storage`/`localStorage`. It carries no exam-type or Question-Group awareness of its own — each site's `stateMachine.js` decides when to consult it and what to do with the result, the same division of responsibility Session already has with respect to site-specific workflow code.
+
+`lib/slideshow.js` (added for the Slideshow feature — see [slideshow.md](slideshow.md)) is shared for the same reason: it only calls the state machine's own `executeStep()` interface method plus `Session.getCurrentState()`, both of which are already part of the site-independent contract below. It never touches selectors, DOM helpers, or `chrome.storage`. Whether a given site's UI actually exposes Slideshow is a site-specific `supportsSlideshow` capability flag on that site's own `stateMachine.js` export, read by `content/panel.js` — not a hostname check anywhere in shared code, keeping the "no `if (isDocxsity)` branch" rule below intact.
 
 **Why this split exists:** the first Docxsity integration attempt shared runtime automation code with Modality. As Docxsity-specific changes accumulated, that shared code grew branchy and eventually regressed the stable Modality implementation — the whole attempt was reverted (preserved on the `docxsity-experiment` branch as reference only). The rule going forward: only code that is *genuinely* website-independent — the question model, session state, and shared UI — is shared. Each site owns its selectors, DOM helpers, waits, and workflow completely, even where the two implementations end up looking similar. Similar-looking code between the two sites is expected and acceptable; it is deliberately never generalized into shared automation code, because that generalization is exactly what caused the original regression.
 
@@ -41,10 +43,13 @@ window.ExamUploadAssistantStateMachine = {
   STATES: { IDLE, PREPARE_FORM, PASTE_QUESTION, PASTE_OPTIONS, MARK_CORRECT,
             GENERATE_AI, ADD_TAGS, SAVE, NEXT_QUESTION, COMPLETE },
   executeStep, passStep, jumpToQuestion,
+  supportsSlideshow,
 };
 ```
 
 `panel.js` never touches selectors or DOM helpers directly, and never knows which site it's driving — it only calls this interface plus `window.ExamUploadAssistantSession`/`...Loader`/`...Parser`. This is what lets the same shared panel UI drive either site without any site-detection logic of its own.
+
+`supportsSlideshow` (`true` on Docxsity, `false` on Modality) extends this same contract for the Slideshow feature: a plain boolean the site declares about itself, read by both `content/panel.js` (to decide what markup to build) and `lib/slideshow.js` (to decide whether to run at all) — never a hostname check. See [slideshow.md](slideshow.md) for the full feature and why Modality opts out.
 
 ---
 
@@ -91,3 +96,5 @@ Each state that needs to interact with the Add Question modal re-resolves it fre
 `content/panel.js` disables Execute Step, Pass Step, and the Jump input/button together, synchronously, before an in-flight `executeStep()` call's first `await` — closing the window where a second click (on any of the three controls) could run concurrently with it. This exists because `executeStep()` is async and can be mid-flight for anywhere from milliseconds to tens of seconds (a `GENERATE_AI` step, in particular); `Session`'s current state isn't written until the in-flight handler resolves, so nothing previously stopped a second Execute Step from re-dispatching to the same handler, or Pass Step/Jump from mutating `Session` while that handler was still acting on the page.
 
 This lives in shared code, not per-site, because the re-entrancy gap it closes exists identically in both `stateMachine.js` implementations — it is a property of `content/panel.js`'s own event wiring, not of either site's DOM. See [decisions.md](decisions.md) for the reasoning that led to placing it here rather than adding a guard inside each state machine.
+
+The Slideshow feature (Docxsity-only, see [slideshow.md](slideshow.md)) extends this same guard rather than adding a second one: `applyMainControlsAvailability()` now also checks `Slideshow.isRunning()` alongside the pre-existing `isPanelBusy` flag, so Execute Step, Pass Step, Jump, and Load Markdown are all locked for the duration of an automated run through the identical mechanism that already locked them for a single in-flight manual step.

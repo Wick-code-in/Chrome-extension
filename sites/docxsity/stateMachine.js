@@ -600,6 +600,21 @@
     };
   }
 
+  // Usability only, not a completion signal: true if any part of the
+  // element's own rect overlaps the current viewport rectangle — a button
+  // that's merely partially cut off at an edge still counts as "in view"
+  // here, so this only triggers a scroll when the button is genuinely
+  // outside what the operator can currently see (e.g. the panel/page was
+  // scrolled elsewhere before Execute Step ran). Deliberately local to this
+  // file rather than a new DomHelpers primitive, since GENERATE_AI is its
+  // only caller.
+  function isElementInViewport(element) {
+    const rect = element.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    return rect.bottom > 0 && rect.right > 0 && rect.top < viewportHeight && rect.left < viewportWidth;
+  }
+
   // Deliberately does not touch the AI model picker (<app-multi-models>) —
   // it always defaults to "Default" pre-selected and needs no interaction,
   // confirmed live. Same workflow for MCQ Choice and Fill Blank; not
@@ -631,6 +646,16 @@
 
     const root = rootResult.element;
     const buttonSelector = Selectors.generateAi.generateButtonSelector;
+
+    // Usability improvement only — belongs here, not in lib/slideshow.js,
+    // so both manual Execute Step and Slideshow's automated executeStep()
+    // calls get it for free from the same GENERATE_AI state, with no
+    // separate implementation. Uses the exact same selector/root already
+    // resolved above; does nothing if the button is already visible.
+    const generateButtonElement = DomHelpers.findElement(buttonSelector, root);
+    if (generateButtonElement && !isElementInViewport(generateButtonElement)) {
+      generateButtonElement.scrollIntoView({ block: "center" });
+    }
 
     const clickResult = DomHelpers.clickElement(buttonSelector, { root });
     if (!clickResult.success) {
