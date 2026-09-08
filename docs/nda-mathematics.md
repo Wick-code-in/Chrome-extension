@@ -32,7 +32,7 @@ Both languages are handled by the same `parseNda()` — no language branch in th
 
 ### Sample files
 
-`samples/NDA_NA_2025_I_Mathematics_English.md` and `samples/NDA_NA_2025_I_Mathematics_Hindi.md` — the only two NDA source files this project has ever parsed or tested against. Every claim in this document about "the NDA samples" refers to exactly these two files; nothing here has been verified against a different NDA paper, a different sitting, or a hypothetical future format.
+`samples/NDA_NA_2025_I_Mathematics_English.md` and `samples/NDA_NA_2025_I_Mathematics_Hindi.md` were the only two NDA source files this project had parsed or tested against as of the original implementation. Two more were added and verified later — `samples/NDA_NA_II_2019_Mathematics_English.md` (Sitting II, English) and `samples/NDA_NA_I_2019_Mathematics_Hindi.md` (Sitting I, Hindi) — see §2's marker-dialect generalization and the new subsection at the end of §3. Every claim in this document about "the NDA samples" refers to whichever of these four files a given claim is scoped to; nothing here has been verified against a paper outside these four.
 
 ### Marking scheme
 
@@ -63,11 +63,14 @@ UPSC's `DIRECTIONS_MARKER_SOURCE` matches lines like `"...for the 3 (three) item
 
 There's a second structural difference beyond wording: **UPSC has a separate "Passage – N" label line** that the shared stem text sits under, found independently via `PASSAGE_MARKER_SOURCE` and attributed to questions by nearest-preceding-marker logic (`computePassageAssignments()`). **NDA has no such label line at all** — the shared stem simply begins immediately after the directions line and runs until the first governed question starts. This makes NDA's own assignment logic (`computeNdaAssignments()`) genuinely *simpler* than UPSC's, not a reduced reimplementation of it: every NDA directions block governs exactly one shared stem, never several, so there's no passage-to-block disambiguation to do.
 
+**Updated for the 2019 samples — the marker wording is not stable across papers either.** The original regex above only matched the 2025 shape (spelled-word-then-`(digit)`, plain text, ends in a bare colon). Two more dialects turned up in the 2019 samples: 2019 English wraps the marker in Markdown emphasis (`*Directions for the following three (03) items :*`, ending in `:*` rather than a bare colon) and follows it with a second, marker-less boilerplate line before the real stem; 2019 Hindi uses the **reverse** count arrangement — a bare digit before a parenthesized spelled-out word (`02 (दो)`), the same shape UPSC's own marker uses, rather than NDA's own `तीन (03)` shape seen in the 2025 Hindi sample. The current regex:
+
 ```js
-const NDA_DIRECTIONS_MARKER_SOURCE = "^.*\\((\\d+)\\).*:\\s*$";
+const NDA_DIRECTIONS_MARKER_SOURCE =
+  "^\\*{0,2}[ \\t]*.*?(?:\\s+\\((\\d+)\\)|(\\d+)\\s+\\([^)\\n\\d]*\\)).*?:[ \\t]*\\*{0,2}[ \\t]*$";
 ```
 
-Matched structurally — any colon-terminated line containing a parenthesized number — not by hardcoding either language's exact wording. Verified against both sample files: exactly 27 matches per language, zero false positives elsewhere in either document.
+Matches structurally, keyed only on the digit (never a spelled-out word in either language) and tolerant of up to 2 leading/trailing asterisks around the line: either `\((\d+)\)` (digit-in-parens) or a bare `(\d+)` followed by a parenthesized non-digit word, **in either order**. Both branches require a real whitespace gap immediately before the opening paren (`\s+\(`, never a bare `\(`) — without that gap, ordinary LaTeX like `$4(x-p)(x-q)$` or `$f(0) = 0$` sitting on an unrelated "Consider the following statements ... :" question-intro line would otherwise also match (both collisions are real, found in the 2019 English sample, Q38 and Q72). The leading asterisk-tolerance deliberately uses `[ \t]*` rather than `\s*`, since `\s` includes newlines and would let a match start from a preceding blank line and swallow across the line boundary. `findNdaDirectionsMarkers()` reads the count from whichever capture group matched (`match[1]` for digit-in-parens, `match[2]` for the reversed arrangement). Verified against all four sample files: exactly the expected marker count per file (27/27/7/5), zero false positives elsewhere in any of them — see the new subsection at the end of §3 for the full validation.
 
 ### How NDA determines which questions belong to a shared instruction
 
@@ -133,7 +136,20 @@ All of the following was confirmed via a Node harness (`require`s `lib/parser.js
 - **`type: "MCQ"` always** — no `NUMERICAL` (Fill Blank) questions appear in either sample.
 - LaTeX and the Q101–104 table survive intact — verified via independent `$`-count and raw-substring checks per question, both languages, not just visual spot-checks.
 
-**Scope of this claim:** these are facts about *these two files only*. Nothing here should be read as a general guarantee about NDA papers from other years or sittings.
+**Scope of this claim:** these are facts about *these two 2025 files only*. Nothing above should be read as a general guarantee about NDA papers from other years or sittings — see below for what's separately verified about the 2019 files.
+
+### Verified structure of the 2019 samples
+
+Confirmed the same way as above (a Node harness requiring `lib/parser.js` directly), against `samples/NDA_NA_II_2019_Mathematics_English.md` (Sitting II) and `samples/NDA_NA_I_2019_Mathematics_Hindi.md` (Sitting I) — two different sittings, not two languages of the same paper, so group counts/membership are **not** expected to match each other the way the 2025 EN/HI pair does.
+
+- **120 questions each**, `Q1`–`Q120`, sequential, no gaps or duplicates, both files.
+- **2019 English: 7 groups, 17 grouped questions, 103 standalone** — exact ranges Q76–78, Q79–80, Q84–85, Q86–88, Q89–90, Q91–93, Q94–95. Five of these seven chain directly into one another with zero standalone questions in between (Q84–85 → Q86–88 → Q89–90 → Q91–93 → Q94–95) — confirmed each such boundary lands on a distinct `group.id` with the earlier group's last member correctly `isLastInGroup: true` and the next group's first member correctly `isFirstInGroup: true`.
+- **2019 Hindi: 5 groups, 11 grouped questions, 109 standalone** — exact ranges Q16–17, Q27–28, Q29–30, Q33–35, Q36–37. Q33–35 → Q36–37 is the same direct-chaining case, confirmed the same way.
+- **Unlike the 2025 samples, both 2019 papers carry a real inline answer key** (`**Ans.** (x)` after every question) — `correctAnswer` correctly resolves to a non-null letter for all 120 questions in both files (spot-checked against the raw source for several questions, including both endpoints Q1/Q120 and every grouped question Q76–78). This is a real difference between the 2019 and 2025 papers, not a parsing inconsistency.
+- **Shared context previously lost is now retained.** Before this fix, every grouped question in both 2019 files parsed with `group: null` and no stem text anywhere (the marker regex didn't match either 2019 dialect — see §2). Concretely, Q77 (English) previously parsed as just `"How much angle does the tangent at $P$ make with $y$-axis ?"`, with no reference to the curve `y = me^{mx}` the question depends on; Q16 (Hindi) previously parsed as just `"विद्यालय में छात्रों की न्यूनतम संख्या क्या हो सकती है ?"`, with the entire shared scenario (students playing three indoor games) missing. Both now correctly carry `group.instructionMarkdown` with the full shared text, and `questionOnlyMarkdown`/`questionMarkdown` are populated the same way UPSC/2025-NDA grouped questions already are.
+- **False-positive guard confirmed necessary, not just theoretical**: two real lines in the 2019 English file would have been misdetected as directions markers under a naively broadened regex — Q38's own question text (`...$4(x-p)(x-q) - r^2 = 0$, where $p, q$ and $r$ are real numbers :`) and Q72's (`...for $x \neq 0$ and $f(0) = 0$ :`) — both ordinary per-question "Consider the following statements ... :" intros containing an incidental parenthesized digit with no preceding whitespace. The mandatory-whitespace-before-the-paren requirement in §2's regex excludes both while still matching every real marker in all four files.
+- **Standalone questions with embedded content remain standalone and unaffected**: 2019 English Q110 (a standalone question with its own embedded markdown frequency table, not a group instruction) and Q98 (a standalone question with a multi-line LaTeX `\begin{cases}` block) both still parse with `group: null` and their content intact.
+- **Zero regression**: `parseDocument()` output diffed byte-for-byte before/after this fix across all pre-existing JEE/UPSC samples, both 2025 NDA Mathematics samples, and both NDA GAT samples — no differences anywhere outside the two 2019 files this fix targets.
 
 ---
 
