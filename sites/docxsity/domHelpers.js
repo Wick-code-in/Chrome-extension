@@ -350,6 +350,27 @@
     const { triggerButton, modal, textarea, confirmButton } = selectors;
     const { root, ...modalOptions } = options;
 
+    // LIVE-VERIFIED (timing recon against real Docxsity, back-to-back calls
+    // with zero artificial delay between them): a freshly-created rich-text
+    // field's own container (an option card, a fresh Sub Question card, the
+    // Add Question modal itself) appears in well under 1ms, but that same
+    // field's TinyMCE-rendered "Paste Raw Markdown" toolbar button takes a
+    // further ~35-55ms to actually exist — a real, measured async gap in
+    // TinyMCE's own initialization, not a general "still rendering" issue
+    // (native Angular controls in the same container — dropdowns, plain
+    // inputs, plain buttons — were confirmed available with zero lag).
+    // Manual Execute Step never surfaces this because human reaction time
+    // between clicks already exceeds that gap; back-to-back automated calls
+    // (Slideshow) have no such buffer. Waiting for the trigger button itself
+    // — the exact element about to be clicked, via the existing
+    // waitForElement() — closes this precisely: it resolves immediately
+    // when the button is already there (the common case) and only actually
+    // waits the few tens of milliseconds it's genuinely still missing.
+    const waitTriggerResult = await waitForElement(triggerButton, options);
+    if (!waitTriggerResult.success) {
+      return waitTriggerResult;
+    }
+
     const clickTriggerResult = clickElement(triggerButton, options);
     if (!clickTriggerResult.success) {
       return clickTriggerResult;

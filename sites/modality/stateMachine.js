@@ -847,6 +847,13 @@
       NEXT_QUESTION: "NEXT_QUESTION",
       COMPLETE: "COMPLETE",
     }),
+    // Capability flag consumed by content/panel.js (via lib/slideshow.js) —
+    // see the identical flag's comment in sites/docxsity/stateMachine.js.
+    // False here because runGenerateAi()/runSave() above are click-only,
+    // with no completion wait at all: Slideshow driving this state machine
+    // would have no reliable way to know either operation actually
+    // finished, so V1 explicitly does not support it on this site.
+    supportsSlideshow: false,
     executeStep,
     passStep,
     jumpToQuestion,

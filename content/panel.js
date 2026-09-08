@@ -6,16 +6,49 @@
     shadowRoot.appendChild(link);
   }
 
-  function buildMarkup(shadowRoot) {
+  // Docxsity (slideshowSupported: true) repurposes the header into the Load
+  // Markdown control and adds a Play/Pause row after State; Modality
+  // (slideshowSupported: false) keeps its original title + standalone Load
+  // Markdown row, completely unchanged, with no Play/Pause row at all. This
+  // is the ONLY place either site's panel structure diverges — driven
+  // purely by the state machine's own supportsSlideshow capability flag
+  // (see sites/docxsity/stateMachine.js / sites/modality/stateMachine.js),
+  // never by a hostname/site check. Every element keeps the same
+  // data-field attribute regardless of which branch produced it, so
+  // nothing downstream in create() needs to know or care which layout is
+  // in use.
+  function buildMarkup(shadowRoot, slideshowSupported) {
     const panel = document.createElement("div");
     panel.className = "panel";
+
+    const headerContent = slideshowSupported
+      ? `<button type="button" class="panel-load-button panel-header-load-button" data-field="load-button">Load Markdown</button>`
+      : `<span class="panel-header-title">Exam Upload Assistant</span>`;
+
+    const standaloneLoadButton = slideshowSupported
+      ? ""
+      : `<button type="button" class="panel-load-button" data-field="load-button">Load Markdown</button>`;
+
+    // Play/Pause deliberately reuse .panel-execute-button/.panel-pass-button
+    // for color/border/typography (same visual role: Play is the primary
+    // "go" action like Execute, Pause is the secondary/stopping action like
+    // Pass) plus a small sizing modifier class so they sit side by side in
+    // the existing .panel-jump-row two-column flex pattern instead of full
+    // width. See content/panel.css.
+    const slideshowRow = slideshowSupported
+      ? `<div class="panel-jump-row">
+          <button type="button" class="panel-execute-button panel-play-button" data-field="play-button">Play</button>
+          <button type="button" class="panel-pass-button panel-pause-button" data-field="pause-button">Pause</button>
+        </div>`
+      : "";
+
     panel.innerHTML = `
       <div class="panel-header" data-field="header">
-        <span class="panel-header-title">Exam Upload Assistant</span>
+        ${headerContent}
         <button type="button" class="panel-settings-toggle" data-field="settings-open-button" title="Settings">&#9881;</button>
       </div>
       <div class="panel-main-view" data-field="main-view">
-        <button type="button" class="panel-load-button" data-field="load-button">Load Markdown</button>
+        ${standaloneLoadButton}
         <div class="panel-row">
           <span class="panel-label">File</span>
           <span class="panel-value" data-field="filename">No file loaded</span>
@@ -28,6 +61,7 @@
           <span class="panel-label">State</span>
           <span class="panel-value" data-field="current-state">IDLE</span>
         </div>
+        ${slideshowRow}
         <button type="button" class="panel-execute-button" data-field="execute-button">Execute Step</button>
         <button type="button" class="panel-pass-button" data-field="pass-button">Pass Step</button>
         <div class="panel-jump-row">
@@ -105,7 +139,17 @@
 
   function create(shadowRoot) {
     loadStyles(shadowRoot);
-    const panelEl = buildMarkup(shadowRoot);
+
+    // Read once, at construction time, from the state machine's own
+    // capability flag — never from a hostname/site check. The site cannot
+    // change without a full page navigation (which destroys and recreates
+    // this whole content-script context anyway), so a one-time read here
+    // is sufficient, matching how Session/Settings already assume a fresh
+    // module scope per page load.
+    const slideshowSupported = !!(
+      window.ExamUploadAssistantStateMachine && window.ExamUploadAssistantStateMachine.supportsSlideshow
+    );
+    const panelEl = buildMarkup(shadowRoot, slideshowSupported);
 
     const questionCounterEl = panelEl.querySelector('[data-field="question-counter"]');
     const currentStateEl = panelEl.querySelector('[data-field="current-state"]');
@@ -115,6 +159,10 @@
     const passButtonEl = panelEl.querySelector('[data-field="pass-button"]');
     const jumpInputEl = panelEl.querySelector('[data-field="jump-input"]');
     const jumpButtonEl = panelEl.querySelector('[data-field="jump-button"]');
+    // Absent (null) on Modality, where buildMarkup() never renders them —
+    // every reference to these below is guarded accordingly.
+    const playButtonEl = panelEl.querySelector('[data-field="play-button"]');
+    const pauseButtonEl = panelEl.querySelector('[data-field="pause-button"]');
     const headerEl = panelEl.querySelector('[data-field="header"]');
     const loadButtonEl = panelEl.querySelector('[data-field="load-button"]');
     const filenameEl = panelEl.querySelector('[data-field="filename"]');
@@ -146,6 +194,54 @@
       },
     };
 
+    function currentHasQuestions() {
+      return window.ExamUploadAssistantSession.getTotalQuestions() > 0;
+    }
+
+    // Single source of truth for every manual control's enabled state,
+    // replacing what used to be two separate, duplicated hasQuestions-only
+    // blocks (one inline in refreshFromSession, one in the Execute handler's
+    // finally safety net). Now also factors in isPanelBusy (previously only
+    // enforced imperatively by setPanelBusy/the finally block, never read by
+    // refreshFromSession itself) and Slideshow.isRunning(), so that no call
+    // to refreshFromSession — including the ones Slideshow's own onStep
+    // callback triggers once per automated step — can ever re-enable
+    // Execute/Pass/Jump/Load Markdown while a run is in progress. Load
+    // Markdown is included here (it never had a guard before this feature):
+    // loading a new file mid-run would reset Session out from under the
+    // running loop, exactly the same class of risk Execute/Pass/Jump were
+    // already protected against.
+    //
+    // playButtonEl/pauseButtonEl are null on Modality (buildMarkup() never
+    // renders them there), so every reference is guarded.
+    function applyMainControlsAvailability(hasQuestions) {
+      const slideshowRunning = window.ExamUploadAssistantSlideshow.isRunning();
+      const notBusy = !isPanelBusy && !slideshowRunning;
+      const manualEnabled = hasQuestions && notBusy;
+
+      executeButtonEl.disabled = !manualEnabled;
+      passButtonEl.disabled = !manualEnabled;
+      jumpInputEl.disabled = !manualEnabled;
+      jumpButtonEl.disabled = !manualEnabled;
+      // Deliberately NOT gated on hasQuestions, unlike Execute/Pass/Jump —
+      // Load Markdown must remain usable before any paper is loaded (that's
+      // its entire purpose) as well as after. Only busy/running disables it.
+      loadButtonEl.disabled = !notBusy;
+
+      if (playButtonEl) {
+        const session = window.ExamUploadAssistantSession;
+        // Play is additionally disabled once the paper is COMPLETE — unlike
+        // Execute, which stays enabled there today (unchanged, existing
+        // behavior) — since pressing Play at that point would just loop on
+        // runComplete() with no effect.
+        playButtonEl.disabled = !hasQuestions || isPanelBusy || slideshowRunning || session.getCurrentState() === "COMPLETE";
+      }
+
+      if (pauseButtonEl) {
+        pauseButtonEl.disabled = !slideshowRunning;
+      }
+    }
+
     function refreshFromSession(result) {
       const session = window.ExamUploadAssistantSession;
 
@@ -159,15 +255,7 @@
       api.setQuestionCounter(`${displayIndex} / ${total}`);
       api.setProgress(progressPercent);
 
-      // Truthful UI: these controls depend on an active session (at least
-      // one parsed question). A completed upload still counts as active —
-      // hasCurrentQuestion() would go false at completion, which is why
-      // getTotalQuestions() is the predicate here, not that.
-      executeButtonEl.disabled = !hasQuestions;
-      passButtonEl.disabled = !hasQuestions;
-      jumpInputEl.disabled = !hasQuestions;
-      jumpButtonEl.disabled = !hasQuestions;
-
+      applyMainControlsAvailability(hasQuestions);
       applySettingsAvailability(hasQuestions);
     }
 
@@ -190,18 +278,23 @@
     // them from running concurrently with an in-flight Execute Step. No
     // state-machine or state-handler logic changes — this protects the
     // panel as a whole, for every site and every state equally.
+    //
+    // Slideshow (see lib/slideshow.js) is a second, independent source of
+    // "something is running," covering its own multi-step call path rather
+    // than a single click — isPanelBusy and Slideshow.isRunning() are
+    // deliberately kept as two separate flags (each guards the call path
+    // that sets it) and combined at every checkpoint via
+    // applyMainControlsAvailability, rather than merged into one, so
+    // neither call path has to know about the other's internals.
     let isPanelBusy = false;
 
     function setPanelBusy(busy) {
       isPanelBusy = busy;
-      executeButtonEl.disabled = busy;
-      passButtonEl.disabled = busy;
-      jumpInputEl.disabled = busy;
-      jumpButtonEl.disabled = busy;
+      applyMainControlsAvailability(currentHasQuestions());
     }
 
     executeButtonEl.addEventListener("click", async () => {
-      if (isPanelBusy) {
+      if (isPanelBusy || window.ExamUploadAssistantSlideshow.isRunning()) {
         return;
       }
 
@@ -214,18 +307,14 @@
         isPanelBusy = false;
         // Safety net in case refreshFromSession above never ran (e.g. an
         // unexpected rejection) — restore every control to the same
-        // hasQuestions-driven state refreshFromSession would have set,
-        // rather than leaving the panel stuck busy.
-        const hasQuestions = window.ExamUploadAssistantSession.getTotalQuestions() > 0;
-        executeButtonEl.disabled = !hasQuestions;
-        passButtonEl.disabled = !hasQuestions;
-        jumpInputEl.disabled = !hasQuestions;
-        jumpButtonEl.disabled = !hasQuestions;
+        // availability refreshFromSession would have set, rather than
+        // leaving the panel stuck busy.
+        applyMainControlsAvailability(currentHasQuestions());
       }
     });
 
     passButtonEl.addEventListener("click", () => {
-      if (isPanelBusy) {
+      if (isPanelBusy || window.ExamUploadAssistantSlideshow.isRunning()) {
         return;
       }
 
@@ -234,7 +323,7 @@
     });
 
     jumpButtonEl.addEventListener("click", () => {
-      if (isPanelBusy) {
+      if (isPanelBusy || window.ExamUploadAssistantSlideshow.isRunning()) {
         return;
       }
 
@@ -246,7 +335,21 @@
       }
     });
 
+    // The header's own drag handler is registered on headerEl further down
+    // (makeDraggable). On Docxsity, Load Markdown now lives inside that same
+    // header row — its own mousedown must not also start a drag, the exact
+    // same reason the gear icon already stops propagation below. This is a
+    // no-op on Modality, where Load Markdown sits in its own row outside the
+    // header and was never a drag target to begin with.
+    loadButtonEl.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+    });
+
     loadButtonEl.addEventListener("click", () => {
+      if (isPanelBusy || window.ExamUploadAssistantSlideshow.isRunning()) {
+        return;
+      }
+
       window.ExamUploadAssistantLoader.openFilePicker((result) => {
         if (!result.success) {
           api.setStatus(result.message);
@@ -267,6 +370,66 @@
         refreshFromSession(result);
       });
     });
+
+    // Slideshow entry point — absent entirely on Modality (playButtonEl/
+    // pauseButtonEl are null there), per the state machine's own
+    // supportsSlideshow flag. Wiring is skipped entirely rather than
+    // attaching dead listeners to non-existent elements.
+    if (playButtonEl && pauseButtonEl) {
+      playButtonEl.addEventListener("click", () => {
+        if (isPanelBusy || window.ExamUploadAssistantSlideshow.isRunning()) {
+          return;
+        }
+
+        // start() sets Slideshow's internal running flag synchronously,
+        // before its first internal await — so by the time this call
+        // returns (even though the run itself keeps going asynchronously),
+        // applyMainControlsAvailability() below already sees isRunning()
+        // as true and locks the panel immediately, without needing to
+        // await the whole run from here. onStep/onStopped below are what
+        // keep the panel updated for the rest of the run's lifetime.
+        window.ExamUploadAssistantSlideshow
+          .start({
+            onStep(result) {
+              refreshFromSession(result);
+            },
+            onStopped() {
+              // Whatever the run's last result was has already been shown
+              // via the onStep call above (success, failure, or the final
+              // COMPLETE transition) — nothing new to display here, only
+              // the controls need to be unlocked now that isRunning() is
+              // false again.
+              applyMainControlsAvailability(currentHasQuestions());
+            },
+          })
+          .catch(() => {
+            // Belt-and-suspenders: lib/slideshow.js already resets its own
+            // running flag and calls onStopped in a finally block even on
+            // an unexpected rejection, so the panel is never left stuck
+            // busy from this alone — this only prevents an unhandled-
+            // rejection console warning for something already handled.
+          });
+
+        applyMainControlsAvailability(currentHasQuestions());
+      });
+
+      pauseButtonEl.addEventListener("click", () => {
+        if (!window.ExamUploadAssistantSlideshow.isRunning()) {
+          return;
+        }
+
+        // Does not cancel whatever step is currently in flight (nothing in
+        // this codebase's wait primitives can be interrupted) — only
+        // prevents the next one from starting. Disabling Pause immediately
+        // (rather than waiting for the run to actually stop) gives honest,
+        // instant feedback that a pause is pending; the real final message
+        // arrives via the in-flight step's own onStep callback the moment
+        // it resolves, overwriting this transient text.
+        window.ExamUploadAssistantSlideshow.pause();
+        pauseButtonEl.disabled = true;
+        api.setStatus("Pausing — finishing current step…");
+      });
+    }
 
     // Settings view: a second, initially-hidden sibling of the main view,
     // switched in place inside the same panel — never a separate window,

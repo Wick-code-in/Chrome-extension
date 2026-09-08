@@ -167,6 +167,22 @@
   background: #2a2a2a;
 }
 
+/* Docxsity only: Load Markdown occupies the header slot the title used to.
+   Reuses .panel-load-button's own colors/hover/active (all declared above,
+   unchanged) and only overrides the box model to fit inline in the header's
+   existing 10px 12px padding instead of standing alone as a full-width block
+   row — the same 36px right-hand reservation .panel-header-title already
+   uses, so the gear icon's existing absolute position needs no change at
+   all. Placed after .panel-load-button's own rules (same specificity) so
+   this margin/padding override actually wins the cascade. Left padding
+   reuses this same rule's own 8px (already used for top/bottom) instead of
+   0, so the text isn't flush against the header's left inset. */
+.panel-header-load-button {
+  margin: 0;
+  padding: 8px 36px 8px 8px;
+  text-align: left;
+}
+
 .panel-pass-button {
   display: block;
   width: calc(100% - 24px);
@@ -231,6 +247,17 @@
   background: #1d4ed8;
 }
 
+/* Docxsity only: Play/Pause keep .panel-execute-button's/.panel-pass-button's
+   own colors, borders, and typography (declared above) unchanged — only the
+   box model is overridden here so both fit side by side in a .panel-jump-row
+   two-column row instead of standing alone as full-width blocks. */
+.panel-play-button,
+.panel-pause-button {
+  flex: 1;
+  width: auto;
+  margin: 0;
+}
+
 .panel-progress-track {
   margin: 4px 12px 12px;
   height: 6px;
@@ -250,7 +277,10 @@
 .panel-pass-button:disabled,
 .panel-jump-input:disabled,
 .panel-jump-button:disabled,
-.panel-toggle-button:disabled {
+.panel-toggle-button:disabled,
+.panel-load-button:disabled,
+.panel-play-button:disabled,
+.panel-pause-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   pointer-events: none;

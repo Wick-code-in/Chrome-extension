@@ -69,6 +69,23 @@
     const selectors = Selectors.prepareForm;
 
     if (!question.group) {
+      // LIVE-VERIFIED (timing recon against real Docxsity, back-to-back
+      // questions with zero artificial delay): after SAVE, the page briefly
+      // tears down and rebuilds its own "Add Question" toolbar as part of
+      // returning from the modal view to the Questions List view — this
+      // button was observed disappearing ~390ms after the Save click, while
+      // the Add Question modal was still visibly open, and reappearing
+      // ~38-43ms after the modal itself was confirmed gone. That trailing
+      // gap is not covered by anything SAVE's own completion wait already
+      // checks (it only waits for the modal, which has no relationship to
+      // this page-level view swap), so a zero-delay caller (Slideshow) can
+      // reach this click before the button exists again. Waiting for the
+      // exact element about to be clicked closes this precisely.
+      const addQuestionButtonReady = await DomHelpers.waitForElement(selectors.addQuestionButton);
+      if (!addQuestionButtonReady.success) {
+        return addQuestionButtonReady;
+      }
+
       const clickResult = DomHelpers.clickElement(selectors.addQuestionButton);
       if (!clickResult.success) {
         return clickResult;
@@ -80,6 +97,14 @@
     let groupModalResult;
 
     if (question.group.isFirstInGroup) {
+      // Same page-level view-transition race as the standalone
+      // addQuestionButton above — this entry point returns from the same
+      // Questions List view after a previous Save, via the same mechanism.
+      const addQuestionGroupButtonReady = await DomHelpers.waitForElement(groupSelectors.addQuestionGroupButton);
+      if (!addQuestionGroupButtonReady.success) {
+        return addQuestionGroupButtonReady;
+      }
+
       const clickGroupResult = DomHelpers.clickElement(groupSelectors.addQuestionGroupButton);
       if (!clickGroupResult.success) {
         return clickGroupResult;
@@ -1029,6 +1054,14 @@
       NEXT_QUESTION: "NEXT_QUESTION",
       COMPLETE: "COMPLETE",
     }),
+    // Capability flag consumed by content/panel.js (via lib/slideshow.js) to
+    // decide whether the Play/Pause Slideshow controls exist at all, and
+    // which panel layout to render — without panel.js ever identifying the
+    // site itself. Docxsity has real completion waits for GENERATE_AI/SAVE
+    // (see runGenerateAi/runSave above); Modality's equivalents are
+    // click-only with no completion detection, which is why its own copy of
+    // this flag is false rather than true.
+    supportsSlideshow: true,
     executeStep,
     passStep,
     jumpToQuestion,
