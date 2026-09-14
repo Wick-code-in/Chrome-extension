@@ -925,11 +925,11 @@
     }
 
     // A Question Group is saved once as a whole, not per sub-question —
-    // only its last member reaches ADD_TAGS/SAVE (which clicks the
-    // group's own Save button, see runSave()); every earlier member skips
-    // straight to NEXT_QUESTION, which simply advances Session to the
-    // next flat question exactly as it already does today. No new state,
-    // no Session change: the next question's own PREPARE_FORM (via
+    // only its last member reaches SAVE (which clicks the group's own
+    // Save button, see runSave()); every earlier member skips straight to
+    // NEXT_QUESTION after being tagged, which simply advances Session to
+    // the next flat question exactly as it already does today. No new
+    // state, no Session change: the next question's own PREPARE_FORM (via
     // ensureQuestionFormReady) is what knows to add another Sub Question
     // card to the group that's still open, rather than starting a new
     // one. Driven purely by question.group metadata — deliberately NOT
@@ -938,7 +938,17 @@
     // ADD_TAGS-skip decision (UPSC has no subjects to tag), but Docxsity's
     // runAddTags() already self-gates on question.subject independent of
     // exam type, so no exam-type check is needed here.
-    if (currentState === "GENERATE_AI") {
+    //
+    // This gate is keyed on ADD_TAGS (not GENERATE_AI, as an earlier
+    // version had it) precisely so every group member — not just the
+    // last — reaches runAddTags(). runAddTags() already resolves its own
+    // current root per-member via resolveCurrentRoot(question) and reads
+    // that member's own question.subject fresh each call; the earlier
+    // GENERATE_AI-keyed gate skipped ADD_TAGS itself for every non-last
+    // member, which is what left only the last member tagged. Only SAVE
+    // — the genuinely group-wide, once-per-group action — is skipped for
+    // non-last members here.
+    if (currentState === "ADD_TAGS") {
       const question = Session.getCurrentQuestion();
       if (question && question.group && !question.group.isLastInGroup) {
         return "NEXT_QUESTION";
