@@ -251,7 +251,11 @@
     }
 
     const examType = Session.getExamType();
-    const markingScheme = MarkingSchemes.getMarkingScheme(examType);
+    // question.type is passed through unconditionally — MarkingSchemes.
+    // getMarkingScheme() ignores it for every exam type except CAT, whose
+    // marking scheme is the only one that varies by question type within
+    // the same paper (see sites/docxsity/config/markingSchemes.js).
+    const markingScheme = MarkingSchemes.getMarkingScheme(examType, question.type);
 
     if (!markingScheme) {
       return {
