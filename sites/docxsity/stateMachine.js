@@ -1025,13 +1025,28 @@
       return jumpFailure("Enter a positive whole number.");
     }
 
-    const total = Session.getTotalQuestions();
+    // Resolved by searching for the matching questionNumber, never by
+    // arithmetic on it (a `questionNumber - 1` array index). A
+    // transcription's question numbering is not guaranteed to be dense —
+    // a question can be genuinely missing from the source PDF (verified
+    // real case: CAT_2022_Slot_1.md has no "**26.**", "**42.**", "**43.**",
+    // or "**44.**" anywhere) — and once a gap like that exists, array
+    // position and questionNumber diverge for every question after it, so
+    // `total` (the array length) is no longer the same thing as "the
+    // highest real question number" either. Only a search is safe here.
+    // Normal forward navigation elsewhere in this state machine never
+    // does this conversion — advanceToNextQuestion() walks
+    // currentQuestionIndex by array position, so it's already unaffected
+    // by gaps; only Jump ever needs to turn a typed-in NUMBER into an
+    // INDEX, so only Jump needed this fix.
+    const questions = Session.getQuestions();
+    const targetIndex = questions.findIndex((q) => q.questionNumber === questionNumber);
 
-    if (questionNumber > total) {
-      return jumpFailure(`Question ${questionNumber} does not exist in the loaded file (1-${total}).`);
+    if (targetIndex === -1) {
+      return jumpFailure(`Question ${questionNumber} does not exist in the loaded file.`);
     }
 
-    const targetQuestion = Session.getQuestions()[questionNumber - 1];
+    const targetQuestion = questions[targetIndex];
 
     // A Question Group can only be created on the website sequentially,
     // starting from its first sub-question — there is no valid entry point
@@ -1056,8 +1071,9 @@
     // how every other retryable failure in this project is handled.
     if (targetQuestion && targetQuestion.group && !targetQuestion.group.isFirstInGroup) {
       const firstQuestionNumber = targetQuestion.group.questionNumbers[0];
+      const firstIndex = questions.findIndex((q) => q.questionNumber === firstQuestionNumber);
 
-      Session.setCurrentQuestionIndex(firstQuestionNumber - 1);
+      Session.setCurrentQuestionIndex(firstIndex);
       Session.setCurrentState("PREPARE_FORM");
 
       const result = {
@@ -1071,7 +1087,7 @@
       return result;
     }
 
-    Session.setCurrentQuestionIndex(questionNumber - 1);
+    Session.setCurrentQuestionIndex(targetIndex);
     Session.setCurrentState("PREPARE_FORM");
 
     const result = { success: true, message: `Jumped to Question ${questionNumber}.`, retryable: false };
