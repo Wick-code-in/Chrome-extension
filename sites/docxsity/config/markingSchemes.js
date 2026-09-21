@@ -21,6 +21,7 @@
     UPSC_PAPER_II: { marks: "2.5", penalty: "0.83" },
     NDA_MATHEMATICS: { marks: "2.5", penalty: "0.83" },
     NDA_GAT: { marks: "4", penalty: "1.33" },
+    GPSC: { marks: "1", penalty: "0.33" },
     // CAT is the first exam type whose marking scheme varies by question
     // type WITHIN the same paper (MCQ vs NUMERICAL/TITA can appear
     // intermixed, even within one Question Group) rather than being one
