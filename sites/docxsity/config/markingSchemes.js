@@ -23,6 +23,15 @@
     NDA_GAT: { marks: "4", penalty: "1.33" },
     GPSC: { marks: "1", penalty: "0.33" },
     GUJCET: { marks: "1", penalty: "0.25" },
+    // English and General Knowledge share the same marks/penalty (120
+    // questions, 100 total marks each) but are kept as separate entries,
+    // keyed by paper like UPSC_PAPER_I/UPSC_PAPER_II above, rather than
+    // merged into one — a future CDS cycle could change one paper's scheme
+    // without the other, and detectExamType() already produces distinct
+    // examType strings per paper.
+    CDS_ENGLISH: { marks: "0.83", penalty: "0.28" },
+    CDS_GENERAL_KNOWLEDGE: { marks: "0.83", penalty: "0.28" },
+    CDS_MATHEMATICS: { marks: "1.00", penalty: "0.33" },
     // CAT is the first exam type whose marking scheme varies by question
     // type WITHIN the same paper (MCQ vs NUMERICAL/TITA can appear
     // intermixed, even within one Question Group) rather than being one
