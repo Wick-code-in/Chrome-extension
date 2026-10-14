@@ -32,6 +32,8 @@
     CDS_ENGLISH: { marks: "0.83", penalty: "0.28" },
     CDS_GENERAL_KNOWLEDGE: { marks: "0.83", penalty: "0.28" },
     CDS_MATHEMATICS: { marks: "1.00", penalty: "0.33" },
+    RRB_GROUP_D: { marks: "1", penalty: "0.33" },
+    RRB_NTPC: { marks: "1", penalty: "0.33" },
     // CAT is the first exam type whose marking scheme varies by question
     // type WITHIN the same paper (MCQ vs NUMERICAL/TITA can appear
     // intermixed, even within one Question Group) rather than being one
